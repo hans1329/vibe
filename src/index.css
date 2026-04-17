@@ -1,0 +1,149 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── Google Fonts ── */
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,800;0,900;1,700;1,800&family=DM+Sans:wght@300;400;500&family=DM+Mono:wght@400;500&display=swap');
+
+/* ── CSS Variables ── */
+:root {
+  --navy-950: #060C1A;
+  --navy-900: #0A1628;
+  --navy-800: #0F2040;
+  --navy-700: #1B2A4A;
+  --navy-600: #243558;
+  --gold-500: #F0C040;
+  --gold-400: #F7C948;
+  --gold-600: #D4A017;
+  --cream: #F8F5EE;
+  --scarlet: #C8102E;
+  --border: rgba(240, 192, 64, 0.15);
+  --border-strong: rgba(240, 192, 64, 0.35);
+}
+
+/* ── Base ── */
+* { box-sizing: border-box; }
+
+body {
+  background: var(--navy-950);
+  color: var(--cream);
+  font-family: 'DM Sans', system-ui, sans-serif;
+  font-weight: 300;
+  line-height: 1.6;
+  overflow-x: hidden;
+}
+
+/* ── Noise texture overlay ── */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.035'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.6;
+}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: var(--navy-950); }
+::-webkit-scrollbar-thumb { background: var(--navy-600); border-radius: 3px; }
+
+/* ── Typography ── */
+.font-display { font-family: 'Playfair Display', Georgia, serif; }
+.font-mono { font-family: 'DM Mono', monospace; }
+
+/* ── Gold shimmer effect ── */
+.gold-shimmer {
+  background: linear-gradient(
+    105deg,
+    var(--gold-600) 0%,
+    var(--gold-400) 40%,
+    #FDE68A 50%,
+    var(--gold-400) 60%,
+    var(--gold-600) 100%
+  );
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: shimmer 4s linear infinite;
+}
+
+@keyframes shimmer {
+  0% { background-position: 200% center; }
+  100% { background-position: -200% center; }
+}
+
+/* ── Divider line ── */
+.rule-gold {
+  border: none;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--gold-500), transparent);
+  opacity: 0.3;
+  margin: 3rem 0;
+}
+
+/* ── Seal / Badge base ── */
+.seal {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: 2px solid var(--gold-500);
+  background: radial-gradient(circle at 30% 30%, var(--navy-700), var(--navy-900));
+}
+
+/* ── Card ── */
+.card-navy {
+  background: linear-gradient(135deg, var(--navy-800) 0%, var(--navy-900) 100%);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+.card-navy:hover {
+  border-color: var(--border-strong);
+}
+
+/* ── Score ring animation ── */
+@keyframes scoreReveal {
+  from { stroke-dashoffset: 314; }
+}
+
+/* ── Stagger fade animations ── */
+.stagger-1 { animation: fadeUp 0.7s 0.1s ease both; }
+.stagger-2 { animation: fadeUp 0.7s 0.2s ease both; }
+.stagger-3 { animation: fadeUp 0.7s 0.3s ease both; }
+.stagger-4 { animation: fadeUp 0.7s 0.4s ease both; }
+.stagger-5 { animation: fadeUp 0.7s 0.5s ease both; }
+.stagger-6 { animation: fadeUp 0.7s 0.6s ease both; }
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(18px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Pulse dot ── */
+@keyframes pulse-dot {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(0.7); opacity: 0.5; }
+}
+.pulse-dot { animation: pulse-dot 2s infinite; }
+
+/* ── Input ── */
+input, textarea, select {
+  background: var(--navy-800);
+  border: 1px solid var(--border);
+  color: var(--cream);
+  border-radius: 4px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 14px;
+  transition: border-color 0.2s;
+  outline: none;
+}
+input:focus, textarea:focus {
+  border-color: var(--gold-500);
+  box-shadow: 0 0 0 3px rgba(240, 192, 64, 0.08);
+}
+input::placeholder, textarea::placeholder {
+  color: rgba(248, 245, 238, 0.25);
+}
