@@ -1,4 +1,16 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <rect width="32" height="32" rx="6" fill="#0F2040"/>
-  <text x="16" y="22" font-family="serif" font-size="18" font-weight="900" fill="#F0C040" text-anchor="middle">d.</text>
+  <rect width="32" height="32" fill="#060C1A"/>
+  <g fill="#F0C040" transform="translate(4 4)">
+    <circle cx="12" cy="12" r="3.5"/>
+    <rect x="11" y="1" width="2" height="4"/>
+    <rect x="11" y="19" width="2" height="4"/>
+    <rect x="1" y="11" width="4" height="2"/>
+    <rect x="19" y="11" width="4" height="2"/>
+    <g transform="rotate(45 12 12)">
+      <rect x="11" y="2.5" width="2" height="3"/>
+      <rect x="11" y="18.5" width="2" height="3"/>
+      <rect x="2.5" y="11" width="3" height="2"/>
+      <rect x="18.5" y="11" width="3" height="2"/>
+    </g>
+  </g>
 </svg>
