@@ -87,7 +87,7 @@ body::before {
   display: inline-block;
   width: 0.28em;
   height: 0.5em;
-  margin-left: 0.08em;
+  margin-left: 0.22em;
   vertical-align: baseline;
   background: var(--gold-500);
   box-shadow: 0 0 20px rgba(240, 192, 64, 0.35);
