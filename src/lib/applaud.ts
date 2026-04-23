@@ -1,94 +1,100 @@
-// Applaud — concept v8 Craft Award track.
-// Scout picks THE one project worthy of the Craft Award during the post-season
-// Applaud Week (Day 22-28). One applaud per scout per season total. No axis.
-// DB trigger stamps weight + scout_tier and grants Activity Point.
+// Applaud — v2 polymorphic toggle (§1-A ①③ · §7.5).
+// Gesture semantics: 1 item = 1 applaud. Click toggles on/off.
+// Targets any user-generated content: product · comment · build_log · stack · brief · recommit.
+// No weight · no scout tier · no season gate. Community-signal only (§6.4).
 
 import { supabase } from './supabase'
-import type { ScoutTier } from './supabase'
+import type { ApplaudTargetType } from './supabase'
 
-export interface CastApplaudInput {
-  projectId: string
-  memberId: string
-  seasonId?: string | null   // defaults to the active season
+export interface ApplaudRef {
+  targetType: ApplaudTargetType
+  targetId:   string
+  memberId:   string
 }
 
-export interface CastApplaudResult {
-  applaudId: string
-  weight:    number
-  scoutTier: ScoutTier
-  apEarned:  number
-}
-
-export class AlreadyApplaudedThisSeasonError extends Error {
+export class CannotApplaudOwnContentError extends Error {
   constructor() {
-    super("You've already cast your Craft Award for this season. Pick one project only.")
-    this.name = 'AlreadyApplaudedThisSeasonError'
+    super("You can't applaud your own content.")
+    this.name = 'CannotApplaudOwnContentError'
   }
 }
 
-export class CannotApplaudOwnProjectError extends Error {
-  constructor() { super("You can't applaud your own project."); this.name = 'CannotApplaudOwnProjectError' }
-}
-
-async function resolveActiveSeasonId(): Promise<string | null> {
+// Returns true if the member already has an applaud on this target.
+export async function hasApplauded(ref: ApplaudRef): Promise<boolean> {
   const { data } = await supabase
-    .from('seasons')
+    .from('applauds')
     .select('id')
-    .eq('status', 'active')
-    .order('start_date', { ascending: false })
-    .limit(1)
+    .eq('member_id',   ref.memberId)
+    .eq('target_type', ref.targetType)
+    .eq('target_id',   ref.targetId)
     .maybeSingle()
-  return data?.id ?? null
+  return !!data
 }
 
-export async function castApplaud(input: CastApplaudInput): Promise<CastApplaudResult> {
-  // Reject own-project applauds before hitting the DB.
-  const { data: proj } = await supabase
-    .from('projects')
-    .select('creator_id')
-    .eq('id', input.projectId)
-    .maybeSingle()
-  if (proj?.creator_id && proj.creator_id === input.memberId) {
-    throw new CannotApplaudOwnProjectError()
-  }
-
-  const seasonId = input.seasonId ?? await resolveActiveSeasonId()
-
+// Insert the applaud. The DB trigger raises P0001 on self-applaud.
+export async function castApplaud(ref: ApplaudRef): Promise<{ applaudId: string }> {
   const { data, error } = await supabase
     .from('applauds')
     .insert([{
-      project_id: input.projectId,
-      member_id:  input.memberId,
-      season_id:  seasonId,
-      // scout_tier + weight stamped by BEFORE INSERT trigger.
+      member_id:   ref.memberId,
+      target_type: ref.targetType,
+      target_id:   ref.targetId,
     }])
-    .select('id, weight, scout_tier')
+    .select('id')
     .single()
 
   if (error) {
     const msg = error.message || ''
-    if (/duplicate key|applauds_member_season_uq/i.test(msg)) {
-      throw new AlreadyApplaudedThisSeasonError()
+    if (/Self-applaud blocked/i.test(msg)) {
+      throw new CannotApplaudOwnContentError()
+    }
+    if (/duplicate key|applauds_member_id_target_type_target_id_key/i.test(msg)) {
+      // Already applauded — treat as idempotent success by re-fetching the row.
+      const { data: existing } = await supabase
+        .from('applauds')
+        .select('id')
+        .eq('member_id',   ref.memberId)
+        .eq('target_type', ref.targetType)
+        .eq('target_id',   ref.targetId)
+        .single()
+      return { applaudId: existing!.id }
     }
     throw error
   }
-
-  return {
-    applaudId: data.id,
-    weight:    Number(data.weight),
-    scoutTier: data.scout_tier as ScoutTier,
-    apEarned:  5,  // v8 §7.6 · Applaud participation = 5 AP
-  }
+  return { applaudId: data.id }
 }
 
-// Whether the scout has already cast this season's single Craft Award.
-export async function hasApplaudedThisSeason(memberId: string, seasonId?: string | null): Promise<string | null> {
-  const effectiveSeason = seasonId ?? await resolveActiveSeasonId()
-  const { data } = await supabase
+// Toggle-off: delete the existing applaud row for this (member, target).
+export async function removeApplaud(ref: ApplaudRef): Promise<void> {
+  const { error } = await supabase
     .from('applauds')
-    .select('project_id')
-    .eq('member_id', memberId)
-    .eq('season_id', effectiveSeason)
-    .maybeSingle()
-  return data?.project_id ?? null
+    .delete()
+    .eq('member_id',   ref.memberId)
+    .eq('target_type', ref.targetType)
+    .eq('target_id',   ref.targetId)
+  if (error) throw error
+}
+
+// Convenience: one call that flips the state.
+export async function toggleApplaud(ref: ApplaudRef): Promise<{ active: boolean }> {
+  const already = await hasApplauded(ref)
+  if (already) {
+    await removeApplaud(ref)
+    return { active: false }
+  }
+  await castApplaud(ref)
+  return { active: true }
+}
+
+// Count applauds on a single target (used by feed cards and detail pages).
+export async function countApplauds(
+  targetType: ApplaudTargetType,
+  targetId:   string,
+): Promise<number> {
+  const { count } = await supabase
+    .from('applauds')
+    .select('id', { count: 'exact', head: true })
+    .eq('target_type', targetType)
+    .eq('target_id',   targetId)
+  return count ?? 0
 }

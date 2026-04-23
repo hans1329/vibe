@@ -174,17 +174,18 @@ export async function fetchCreatorsByIds(ids: string[]): Promise<Record<string, 
   return map
 }
 
-// Count applauds per project. Used by the grid for the 👏 chip.
+// Count applauds per project (v2 polymorphic applauds · target_type='product').
 export async function fetchApplaudCounts(projectIds: string[]): Promise<Record<string, number>> {
   const unique = Array.from(new Set(projectIds.filter(Boolean)))
   if (unique.length === 0) return {}
   const { data } = await supabase
     .from('applauds')
-    .select('project_id')
-    .in('project_id', unique)
+    .select('target_id')
+    .eq('target_type', 'product')
+    .in('target_id', unique)
   const map: Record<string, number> = {}
   ;(data ?? []).forEach((r) => {
-    const pid = (r as { project_id: string }).project_id
+    const pid = (r as { target_id: string }).target_id
     map[pid] = (map[pid] ?? 0) + 1
   })
   return map
@@ -229,21 +230,19 @@ export async function fetchProjectForecasts(id: string, limit = 20): Promise<For
   return (data ?? []) as ForecastRow[]
 }
 
+// v2 polymorphic applauds (§7.5). Product applauds = target_type='product'.
 export interface ApplaudRow {
   id: string
   created_at: string
-  member_id: string | null
-  applauded_axis: string | null
-  applaud_comment: string | null
-  weight: number
-  scout_tier: string
+  member_id: string
 }
 
 export async function fetchProjectApplauds(id: string, limit = 20): Promise<ApplaudRow[]> {
   const { data } = await supabase
     .from('applauds')
-    .select('id, created_at, member_id, applauded_axis, applaud_comment, weight, scout_tier')
-    .eq('project_id', id)
+    .select('id, created_at, member_id')
+    .eq('target_type', 'product')
+    .eq('target_id', id)
     .order('created_at', { ascending: false })
     .limit(limit)
   return (data ?? []) as ApplaudRow[]

@@ -17,9 +17,9 @@ import type { AnalysisResult } from '../lib/analysis'
 import { AnalysisResultCard } from '../components/AnalysisResultCard'
 import { ScoreTimeline } from '../components/ScoreTimeline'
 import { ForecastModal } from '../components/ForecastModal'
-import { ApplaudModal } from '../components/ApplaudModal'
+import { ApplaudButton } from '../components/ApplaudButton'
 import { EditProjectModal } from '../components/EditProjectModal'
-import { IconForecast, IconApplaud } from '../components/icons'
+import { IconForecast } from '../components/icons'
 import { fetchAuditionStreak } from '../lib/auditionStreak'
 import { OwnerBriefPanel } from '../components/OwnerBriefPanel'
 import { GraduationChecklist } from '../components/GraduationChecklist'
@@ -40,7 +40,6 @@ export function ProjectDetailPage() {
   const [applauds, setApplauds] = useState<ApplaudRow[]>([])
   const [loading, setLoading] = useState(true)
   const [forecastOpen, setForecastOpen] = useState(false)
-  const [applaudOpen, setApplaudOpen] = useState(false)
   const [editOpen, setEditOpen] = useState(false)
   const [streakClimbs, setStreakClimbs] = useState(0)
   const [notFound, setNotFound] = useState(false)
@@ -168,6 +167,8 @@ export function ProjectDetailPage() {
 
   const canForecast = !!user && user.id !== project.creator_id
   const isOwner     = !!user && user.id === project.creator_id
+  // Forecast ballots are only accepted during the 3 active weeks (§11.2).
+  const isVotingPhase = seasonPhase === 'week_1' || seasonPhase === 'week_2' || seasonPhase === 'week_3'
 
   // ── Section nav config (order = scroll order) ───────────────
   const sections: Array<{ id: string; label: string; ownerOnly?: boolean }> = [
@@ -295,7 +296,7 @@ export function ProjectDetailPage() {
                     GITHUB ↗
                   </a>
                 )}
-                {canForecast && seasonPhase !== 'applaud' && (
+                {canForecast && isVotingPhase && (
                   <button
                     onClick={() => setForecastOpen(true)}
                     className="font-mono text-xs font-medium tracking-wide px-3 py-1.5"
@@ -304,15 +305,16 @@ export function ProjectDetailPage() {
                     <span className="inline-flex items-center justify-center gap-1.5"><IconForecast size={12} /> FORECAST</span>
                   </button>
                 )}
-                {canForecast && seasonPhase === 'applaud' && (
-                  <button
-                    onClick={() => setApplaudOpen(true)}
-                    className="font-mono text-xs font-medium tracking-wide px-3 py-1.5"
-                    style={{ background: 'rgba(167,139,250,0.08)', color: '#A78BFA', border: '1px solid rgba(167,139,250,0.35)', borderRadius: '2px', cursor: 'pointer' }}
-                    title="Craft Award · Applaud Week (post-season)"
-                  >
-                    <span className="inline-flex items-center justify-center gap-1.5"><IconApplaud size={12} /> CAST CRAFT AWARD</span>
-                  </button>
+                {/* v2 Applaud (§7.5) · light toggle · any phase · non-owner only */}
+                {!isOwner && (
+                  <ApplaudButton
+                    targetType="product"
+                    targetId={project.id}
+                    viewerMemberId={user?.id ?? null}
+                    isOwnContent={isOwner}
+                    size="sm"
+                    onChange={() => fetchProjectApplauds(project.id).then(setApplauds)}
+                  />
                 )}
               </div>
             </div>
@@ -435,12 +437,12 @@ export function ProjectDetailPage() {
                 ))}
               </ActivityList>
 
-              <ActivityList title="CRAFT AWARD · APPLAUDS" emptyLabel="No applauds yet. Applaud Week opens Day 22." accent="#A78BFA">
+              <ActivityList title="APPLAUDS" emptyLabel="No applauds yet." accent="var(--gold-500)">
                 {applauds.map(a => (
                   <ActivityRow
                     key={a.id}
-                    primary={`${a.scout_tier} Scout`}
-                    detail={`weight ×${a.weight}`}
+                    primary="Applauded"
+                    detail=""
                     secondary=""
                     time={a.created_at}
                   />
@@ -464,12 +466,6 @@ export function ProjectDetailPage() {
           // reload forecasts + project score after cast
           fetchProjectForecasts(project.id).then(setForecasts)
           fetchProjectById(project.id).then(p => p && setProject(p))
-        }} />
-      )}
-
-      {applaudOpen && (
-        <ApplaudModal project={project} onClose={() => setApplaudOpen(false)} onCast={() => {
-          fetchProjectApplauds(project.id).then(setApplauds)
         }} />
       )}
 

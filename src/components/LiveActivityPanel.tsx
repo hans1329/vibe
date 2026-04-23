@@ -11,7 +11,6 @@ interface ActivityItem {
   created_at: string
   project_id: string
   project_name: string
-  scout_tier: string | null
   detail: string | null
 }
 
@@ -33,13 +32,16 @@ export function LiveActivityPanel({ variant = 'ticker' }: LiveActivityPanelProps
 
   useEffect(() => {
     ;(async () => {
+      // v2 applauds are polymorphic · live feed surfaces product-scoped ones
+      // (product pages are what ticker clicks navigate to).
       const [votesRes, applaudsRes] = await Promise.all([
         supabase.from('votes')
-          .select('id, created_at, project_id, predicted_score, scout_tier, projects(project_name)')
+          .select('id, created_at, project_id, predicted_score, projects(project_name)')
           .order('created_at', { ascending: false })
           .limit(15),
         supabase.from('applauds')
-          .select('id, created_at, project_id, applauded_axis, scout_tier, projects(project_name)')
+          .select('id, created_at, target_id, projects:projects!inner(id, project_name)')
+          .eq('target_type', 'product')
           .order('created_at', { ascending: false })
           .limit(15),
       ])
@@ -51,17 +53,15 @@ export function LiveActivityPanel({ variant = 'ticker' }: LiveActivityPanelProps
         created_at: v.created_at,
         project_id: v.project_id,
         project_name: v.projects?.project_name ?? 'Project',
-        scout_tier: v.scout_tier,
         detail: v.predicted_score != null ? `Forecast ${v.predicted_score}/100` : 'Forecast cast',
       }))
       ;(applaudsRes.data ?? []).forEach((a: any) => merged.push({
         id: `a:${a.id}`,
         kind: 'applaud',
         created_at: a.created_at,
-        project_id: a.project_id,
+        project_id: a.target_id,
         project_name: a.projects?.project_name ?? 'Project',
-        scout_tier: a.scout_tier,
-        detail: a.applauded_axis ? `Applaud on ${a.applauded_axis}` : 'Applaud',
+        detail: 'Applaud',
       }))
 
       merged.sort((a, b) => b.created_at.localeCompare(a.created_at))
@@ -82,22 +82,21 @@ export function LiveActivityPanel({ variant = 'ticker' }: LiveActivityPanelProps
           created_at: v.created_at,
           project_id: v.project_id,
           project_name: data?.project_name ?? 'Project',
-          scout_tier: v.scout_tier,
           detail: v.predicted_score != null ? `Forecast ${v.predicted_score}/100` : 'Forecast cast',
         }
         setItems(prev => [item, ...prev].slice(0, MAX_ITEMS))
       })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'applauds' }, async (payload) => {
         const a = payload.new as any
-        const { data } = await supabase.from('projects').select('project_name').eq('id', a.project_id).maybeSingle()
+        if (a.target_type !== 'product') return   // ticker only surfaces product applauds
+        const { data } = await supabase.from('projects').select('project_name').eq('id', a.target_id).maybeSingle()
         const item: ActivityItem = {
           id: `a:${a.id}`,
           kind: 'applaud',
           created_at: a.created_at,
-          project_id: a.project_id,
+          project_id: a.target_id,
           project_name: data?.project_name ?? 'Project',
-          scout_tier: a.scout_tier,
-          detail: a.applauded_axis ? `Applaud on ${a.applauded_axis}` : 'Applaud',
+          detail: 'Applaud',
         }
         setItems(prev => [item, ...prev].slice(0, MAX_ITEMS))
       })
@@ -181,7 +180,7 @@ function TickerPill({ item, onClick }: { item: ActivityItem; onClick: () => void
           </span>
         </div>
         <div className="truncate" style={{ color: 'var(--text-muted)', fontSize: '10px' }}>
-          {item.scout_tier ?? 'Bronze'} · {item.detail}
+          {item.detail}
         </div>
       </div>
     </button>
@@ -232,7 +231,7 @@ function SidebarList({ items, loading, onClick }: { items: ActivityItem[]; loadi
                 <span style={{ color: 'var(--text-muted)' }}>{formatRelative(item.created_at)}</span>
               </div>
               <div className="text-[10px] mt-0.5" style={{ color: 'var(--text-secondary)' }}>
-                {item.scout_tier ?? 'Bronze'} · {item.detail}
+                {item.detail}
               </div>
             </li>
           ))}
