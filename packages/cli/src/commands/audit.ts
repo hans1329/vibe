@@ -1,30 +1,35 @@
 import { resolveTarget, TargetError } from '../lib/target.js'
 import { findProjectByGithubUrl, fetchLatestSnapshot, fetchStanding } from '../lib/api.js'
-import { renderAudit, renderMarkdown, writeAuditMarkdown } from '../lib/render.js'
+import {
+  renderAudit, renderMarkdown, renderJson,
+  writeAuditMarkdown, writeAuditJson,
+} from '../lib/render.js'
 import { c } from '../lib/colors.js'
 
 export async function audit(args: string[]): Promise<number> {
+  const asJson = args.includes('--json')
   const positional = args.find(a => !a.startsWith('--'))
+
   let target
   try {
     target = resolveTarget(positional)
   } catch (err) {
     if (err instanceof TargetError) {
-      console.error(c.scarlet(err.message))
+      emitError(asJson, 'bad_target', err.message, positional)
       return 2
     }
     throw err
   }
 
-  console.log(c.dim(`Auditing ${target.slug}…`))
+  if (!asJson) console.log(c.dim(`Auditing ${target.slug}…`))
 
   const project = await findProjectByGithubUrl(target.github_url)
   if (!project) {
-    console.log('')
-    console.log(c.cream(`No audition yet for ${target.slug}.`))
-    console.log('')
-    console.log(c.muted(`Put your project on stage at https://commit.show/submit`))
-    console.log(c.muted(`or once you're signed in: ${c.gold('commitshow submit')} ${c.dim('(coming soon)')}`))
+    emitError(
+      asJson, 'not_found',
+      `No audition yet for ${target.slug}. Put your project on stage at https://commit.show/submit.`,
+      target.github_url,
+    )
     return 1
   }
 
@@ -34,15 +39,34 @@ export async function audit(args: string[]): Promise<number> {
   ])
 
   const view = { project, snapshot, standing }
-  console.log('')
-  console.log(renderAudit(view))
-  console.log('')
 
-  // Persist .commitshow/audit.md in local mode so AI agents can read it next turn.
+  if (asJson) {
+    // stdout JSON only. Never emit anything else — consumer pipes to jq.
+    process.stdout.write(renderJson(view) + '\n')
+  } else {
+    console.log('')
+    console.log(renderAudit(view))
+    console.log('')
+  }
+
+  // Persist both .md and .json in local mode so AI agents get both human
+  // and machine context for their next turn.
   if (target.kind === 'local') {
-    const path = writeAuditMarkdown(target.localPath, renderMarkdown(view))
-    if (path) console.log(c.dim(`  Saved → ${path}`))
+    const mdPath   = writeAuditMarkdown(target.localPath, renderMarkdown(view))
+    const jsonPath = writeAuditJson(target.localPath, renderJson(view))
+    if (!asJson) {
+      if (mdPath)   console.log(c.dim(`  Saved → ${mdPath}`))
+      if (jsonPath) console.log(c.dim(`  Saved → ${jsonPath}`))
+    }
   }
 
   return 0
+}
+
+function emitError(asJson: boolean, code: string, message: string, target?: string): void {
+  if (asJson) {
+    process.stdout.write(JSON.stringify({ error: code, message, target: target ?? null }) + '\n')
+  } else {
+    console.error(c.scarlet(message))
+  }
 }

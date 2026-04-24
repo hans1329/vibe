@@ -55,15 +55,55 @@ Remote-URL mode works from any directory, which makes one-line X posts
 
 ## The AI-coding loop
 
-`commitshow audit` in local mode writes to `.commitshow/audit.md` after every
-run. Point your coding agent at the file and it picks up exactly what
-the audit flagged, with no prompt engineering:
+`commitshow audit` in local mode writes to `.commitshow/audit.md` **and**
+`.commitshow/audit.json` after every run. Point your coding agent at them
+and it picks up exactly what the audit flagged, with no prompt engineering:
 
 ```
 You are pairing on <repo>. Read .commitshow/audit.md before each turn.
 Pick the top concern and propose a minimal change; I'll run
 `commitshow audit` again to check the delta.
 ```
+
+## For agents: `--json`
+
+`commitshow` is built on a simple idea — **CLI + stable JSON is the universal
+contract** between agent ecosystems. No SDK, no MCP server, no vendor lock.
+Any agent that can shell out to a subprocess can use commit.show.
+
+```bash
+# Human
+commitshow audit github.com/owner/repo
+
+# Agent
+commitshow audit github.com/owner/repo --json | jq '.concerns[].bullet'
+```
+
+### Example agent workflow
+
+> "Check my commit.show score and fix anything under 80."
+
+```
+score=$(commitshow audit --json | jq '.score.total')
+if [ "$score" -lt 80 ]; then
+  commitshow audit --json | jq -r '.concerns[0].bullet'
+  # → agent reads this concern, picks a fix, applies edits, re-audits
+fi
+```
+
+### JSON shape (v1 schema)
+
+Stable by contract — additive fields don't bump `schema_version`; breaking
+changes do. Known keys: `project`, `score`, `standing`, `strengths`, `concerns`,
+`snapshot`. See `commitshow audit --json` output for the canonical example.
+
+### Works with
+
+- **Claude Code**, **Cursor**, **Windsurf** — any agent with shell access
+- **GitHub Actions** — gate PRs on score band or axis scores
+- **n8n / Zapier** — trigger workflows when scores move
+- **AutoGPT / crewAI / LangChain** — subprocess tool node
+- **Your own script** — 10 lines of bash + jq is the whole integration
 
 ## What's in the report
 
@@ -75,9 +115,10 @@ Pick the top concern and propose a minimal change; I'll run
 
 ## Roadmap
 
-- `0.2` — device-flow login · `commitshow submit` · `.json` output for CI
+- `0.1` — ✓ read-only audit · status · `--json` · target auto-detect · sidecar files
+- `0.2` — device-flow login · `commitshow submit` · `--watch` mode · CI exit-code gate
 - `0.3` — `commitshow install <pack>` with {{VARIABLE}} substitution
-- `0.4` — MCP server variant (Cursor / Claude Desktop can call commit.show tools directly)
+- `0.4` — MCP server variant (Cursor / Claude Desktop can call commit.show tools directly · §15-C.6)
 
 ## Links
 

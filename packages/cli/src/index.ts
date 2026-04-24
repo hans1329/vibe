@@ -22,12 +22,19 @@ ${c.muted('COMMANDS')}
   ${c.gold('login')}                device-flow sign-in (coming soon)
   ${c.gold('whoami')}                who am I signed in as
 
+${c.muted('FLAGS')}
+  ${c.gold('--json')}     stable machine-readable output (for agents · CI · jq pipes)
+
 ${c.muted('TARGET FORMS')}  ${c.dim('(default: cwd)')}
   ${c.cream('commitshow audit')}                          ${c.dim('# cwd · git remote origin')}
   ${c.cream('commitshow audit ./my-repo')}                ${c.dim('# local path')}
   ${c.cream('commitshow audit github.com/owner/repo')}    ${c.dim('# remote shorthand')}
   ${c.cream('commitshow audit https://github.com/o/r')}   ${c.dim('# full URL')}
   ${c.cream('commitshow audit owner/repo')}               ${c.dim('# last-ditch shorthand')}
+
+${c.muted('FOR AGENTS')}
+  ${c.cream('commitshow audit github.com/owner/repo --json | jq .concerns')}
+  ${c.dim(' → agent reads concerns, picks a fix target, applies edits, re-audits')}
 
 ${c.muted('LEARN MORE')}
   https://commit.show

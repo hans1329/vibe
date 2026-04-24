@@ -1,15 +1,22 @@
 // Terminal render — the canonical output spec from CLAUDE.md §15-C.2.
 //
-// Optimized for:
-//   · Fixed-width 58-col layout (fits ~700×500 screenshots on X)
+// Two output modes:
+//   · Pretty (default) — fixed-width 58-col terminal screenshot layout with
+//     ANSI colors, brand palette, strengths/concerns box. Human target.
+//   · JSON (`--json`) — stable machine-readable shape with `schema_version`.
+//     Agent target: Claude Code, AutoGPT, n8n, Zapier, GitHub Actions, etc.
+//     The JSON shape is the universal contract — no SDK or MCP needed to
+//     integrate. Agent workflow: shell out to commitshow, pipe to jq, act.
+//
+// Both modes share:
 //   · 3 strengths + 2 concerns asymmetry (§15-C.2 content contract)
 //   · self-delta only (no peer-vs-peer drama in V0.1)
-//   · .commitshow/audit.md side-effect for AI re-read loop
+//   · `.commitshow/audit.{md,json}` side-effect for AI re-read loop
 
 import { writeFileSync, mkdirSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { c, scoreTone, deltaTone } from './colors.js'
-import type { ProjectRow, SnapshotRow, StandingRow } from './api.js'
+import type { ProjectRow, SnapshotRow, StandingRow, ScoutBriefItem } from './api.js'
 
 export interface AuditView {
   project:  ProjectRow
@@ -200,6 +207,141 @@ export function writeAuditMarkdown(dir: string | undefined, md: string): string 
     if (!existsSync(cshow)) mkdirSync(cshow, { recursive: true })
     const path = join(cshow, 'audit.md')
     writeFileSync(path, md, 'utf8')
+    return path
+  } catch {
+    return null
+  }
+}
+
+// ─────────── Agent-facing JSON shape ───────────
+//
+// STABILITY NOTE: this shape is the public contract agents parse. Any
+// breaking change bumps `schema_version`. Additive fields don't bump.
+
+export interface AgentJsonShape {
+  schema_version: '1'
+  generated_at:   string
+  project: {
+    id:           string
+    name:         string
+    github_url:   string | null
+    live_url:     string | null
+    status:       string
+    creator: {
+      name:  string | null
+      grade: string | null
+    }
+    url: string
+  }
+  score: {
+    total:            number
+    total_max:        100
+    audit:            number
+    audit_max:        50
+    scout:            number
+    scout_max:        30
+    community:        number
+    community_max:    20
+    /** +/- since parent snapshot, null if first audit or no change tracked. */
+    delta_since_last: number | null
+    /** Pass band on 0-100 scale: "strong" ≥75 · "mid" 50-74 · "weak" <50 */
+    band: 'strong' | 'mid' | 'weak'
+  }
+  standing: {
+    rank:             number
+    total_in_season:  number
+    percentile:       number
+    projected_tier:   string | null
+    live_url_ok:      boolean | null
+    snapshots_ok:     boolean | null
+    brief_ok:         boolean | null
+  } | null
+  strengths: Array<{ axis: string | null; bullet: string }>
+  concerns:  Array<{ axis: string | null; bullet: string }>
+  snapshot: {
+    id:           string
+    created_at:   string
+    trigger_type: string
+  } | null
+}
+
+function bandFor(score: number): 'strong' | 'mid' | 'weak' {
+  if (score >= 75) return 'strong'
+  if (score >= 50) return 'mid'
+  return 'weak'
+}
+
+function asObjectArray(raw: unknown, take: number): Array<{ axis: string | null; bullet: string }> {
+  if (!Array.isArray(raw)) return []
+  const out: Array<{ axis: string | null; bullet: string }> = []
+  for (const row of raw.slice(0, take)) {
+    if (typeof row === 'string' && row.trim().length > 0) {
+      out.push({ axis: null, bullet: row })
+    } else if (row && typeof row === 'object') {
+      const r = row as ScoutBriefItem & Record<string, unknown>
+      const bullet = String(r.bullet ?? r.finding ?? r.text ?? r.summary ?? r.title ?? '').trim()
+      if (bullet) out.push({ axis: r.axis ?? null, bullet })
+    }
+  }
+  return out
+}
+
+export function toAgentShape(view: AuditView): AgentJsonShape {
+  const { project: p, snapshot, standing } = view
+  return {
+    schema_version: '1',
+    generated_at:   new Date().toISOString(),
+    project: {
+      id:         p.id,
+      name:       p.project_name,
+      github_url: p.github_url,
+      live_url:   p.live_url,
+      status:     p.status,
+      creator: { name: p.creator_name, grade: p.creator_grade },
+      url:        `https://commit.show/projects/${p.id}`,
+    },
+    score: {
+      total:            p.score_total,
+      total_max:        100,
+      audit:            p.score_auto,
+      audit_max:        50,
+      scout:            p.score_forecast,
+      scout_max:        30,
+      community:        p.score_community,
+      community_max:    20,
+      delta_since_last: snapshot?.score_total_delta ?? null,
+      band:             bandFor(p.score_total),
+    },
+    standing: standing
+      ? {
+          rank:            standing.rank,
+          total_in_season: standing.total_in_season,
+          percentile:      standing.percentile,
+          projected_tier:  standing.projected_tier,
+          live_url_ok:     (standing as unknown as { live_url_ok?: boolean }).live_url_ok ?? null,
+          snapshots_ok:    (standing as unknown as { snapshots_ok?: boolean }).snapshots_ok ?? null,
+          brief_ok:        (standing as unknown as { brief_ok?: boolean }).brief_ok ?? null,
+        }
+      : null,
+    strengths: asObjectArray(snapshot?.rich_analysis?.scout_brief?.strengths, 3),
+    concerns:  asObjectArray(snapshot?.rich_analysis?.scout_brief?.weaknesses, 2),
+    snapshot: snapshot
+      ? { id: snapshot.id, created_at: snapshot.created_at, trigger_type: snapshot.trigger_type }
+      : null,
+  }
+}
+
+export function renderJson(view: AuditView): string {
+  return JSON.stringify(toAgentShape(view), null, 2)
+}
+
+export function writeAuditJson(dir: string | undefined, json: string): string | null {
+  if (!dir) return null
+  try {
+    const cshow = join(dir, '.commitshow')
+    if (!existsSync(cshow)) mkdirSync(cshow, { recursive: true })
+    const path = join(cshow, 'audit.json')
+    writeFileSync(path, json, 'utf8')
     return path
   } catch {
     return null
