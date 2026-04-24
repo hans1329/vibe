@@ -53,12 +53,28 @@ export function AuthModal({ open, onClose, initialMode = 'signin' }: AuthModalPr
   const handleOAuth = async (provider: OAuthProvider) => {
     setError(null)
     setOauthBusy(provider)
-    const { error: err } = await signInWithOAuth(provider)
-    if (err) {
+
+    // Safety timeout — if the provider redirect never fires (misconfigured
+    // provider, popup blocker, or the Supabase request silently stalls), we
+    // need to release the disabled-button state so the modal stays usable.
+    const safety = window.setTimeout(() => {
       setOauthBusy(null)
-      setError(err.message)
+      setError(`${provider} sign-in didn't start. Try again, or check that the provider is configured.`)
+    }, 12_000)
+
+    try {
+      const { error: err } = await signInWithOAuth(provider)
+      if (err) {
+        window.clearTimeout(safety)
+        setOauthBusy(null)
+        setError(err.message)
+      }
+      // Success case redirects away · the timeout is cancelled on unload.
+    } catch (caught) {
+      window.clearTimeout(safety)
+      setOauthBusy(null)
+      setError(caught instanceof Error ? caught.message : 'Sign-in failed.')
     }
-    // Success case redirects away — no need to clear busy
   }
 
   return (
@@ -69,9 +85,27 @@ export function AuthModal({ open, onClose, initialMode = 'signin' }: AuthModalPr
     >
       <div
         onClick={e => e.stopPropagation()}
-        className="card-navy w-full max-w-md p-8 max-h-[92vh] overflow-y-auto"
+        className="card-navy w-full max-w-md p-8 max-h-[92vh] overflow-y-auto relative"
         style={{ borderRadius: '2px', borderColor: 'rgba(240,192,64,0.25)' }}
       >
+        {/* Close × — always visible, always works even if OAuth is busy */}
+        <button
+          onClick={onClose}
+          aria-label="Close"
+          className="absolute top-3 right-3 font-mono text-xs px-2 py-1 transition-colors"
+          style={{
+            background: 'transparent',
+            color: 'var(--text-secondary)',
+            border: '1px solid rgba(255,255,255,0.12)',
+            borderRadius: '2px',
+            cursor: 'pointer',
+          }}
+          onMouseEnter={e => { e.currentTarget.style.color = 'var(--gold-500)'; e.currentTarget.style.borderColor = 'rgba(240,192,64,0.35)' }}
+          onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-secondary)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.12)' }}
+        >
+          ESC ×
+        </button>
+
         {/* Header */}
         <div className="mb-6">
           <div className="font-mono text-xs tracking-widest mb-2" style={{ color: 'var(--gold-500)' }}>
