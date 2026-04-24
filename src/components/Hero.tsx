@@ -132,8 +132,8 @@ export function Hero({ stats }: HeroProps) {
         className="stagger-3 max-w-xl mx-auto mb-10 font-light"
         style={{ color: 'rgba(248,245,238,0.55)', fontSize: '1.1rem', lineHeight: 1.8 }}
       >
-        The vibe coding league where every commit is evidence. AI scores the work,
-        Scouts forecast the finish, and the ones ready for production graduate.
+        The vibe coding league where every commit is evidence. The engine audits
+        the work, Scouts forecast the finish, and the ones ready for production graduate.
       </p>
 
       {/* CTA */}
@@ -153,7 +153,7 @@ export function Hero({ stats }: HeroProps) {
           onMouseEnter={e => { e.currentTarget.style.background = 'var(--gold-400)'; e.currentTarget.style.boxShadow = '0 0 60px rgba(240,192,64,0.35)'; }}
           onMouseLeave={e => { e.currentTarget.style.background = 'var(--gold-500)'; e.currentTarget.style.boxShadow = '0 0 40px rgba(240,192,64,0.2)'; }}
         >
-          Score your project →
+          Audition your product →
         </button>
         <button
           onClick={onFeedClick}

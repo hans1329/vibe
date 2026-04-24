@@ -69,7 +69,7 @@ export function computeSeasonProgress(season: Season, now: Date = new Date()): S
   }
 
   const phaseHint: Record<SeasonPhase, string> = {
-    upcoming:    'Applications open. No scoring yet.',
+    upcoming:    'Auditions open. No scoring yet.',
     week_1:      'Scores hidden — you see only the stage label. Iterate without public pressure.',
     week_2:      'Your project reveals only as a percentile band ("top X%"). First feedback lands.',
     week_3:      'Concrete scores unlock with a 6-hour delay. Forecasts intensify.',

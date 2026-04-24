@@ -199,29 +199,29 @@ export function ProfilePage() {
         {/* ── Graduation explainer ── */}
         <GraduationExplainer currentGrade={grade} graduatedCount={stats?.graduated_count ?? 0} />
 
-        {/* ── My Applications ── */}
+        {/* ── My Auditions ── */}
         <div className="mb-8">
           <div className="flex items-baseline justify-between mb-3">
             <div>
-              <div className="font-mono text-xs tracking-widest" style={{ color: 'var(--gold-500)' }}>// MY APPLICATIONS</div>
+              <div className="font-mono text-xs tracking-widest" style={{ color: 'var(--gold-500)' }}>// MY AUDITIONS</div>
               <div className="font-mono text-[10px] mt-0.5" style={{ color: 'var(--text-muted)' }}>
-                Every project you've submitted · click to open its dashboard
+                Every product you've auditioned · click to open its dashboard
               </div>
             </div>
             <NavLink to="/submit" className="font-mono text-xs font-medium tracking-wide px-3 py-1.5"
               style={{ background: 'var(--gold-500)', color: 'var(--navy-900)', border: 'none', borderRadius: '2px', textDecoration: 'none' }}>
-              APPLY WITH A NEW PROJECT →
+              AUDITION A NEW PRODUCT →
             </NavLink>
           </div>
           {loading ? (
             <div className="card-navy p-8 font-mono text-xs text-center" style={{ color: 'var(--text-muted)', borderRadius: '2px' }}>
-              Loading your applications…
+              Loading your auditions…
             </div>
           ) : applications.length === 0 ? (
             <div className="card-navy p-10 text-center" style={{ borderRadius: '2px' }}>
-              <div className="font-display text-xl font-bold mb-2" style={{ color: 'var(--text-muted)' }}>No applications yet</div>
+              <div className="font-display text-xl font-bold mb-2" style={{ color: 'var(--text-muted)' }}>No auditions yet</div>
               <p className="font-mono text-xs" style={{ color: 'var(--text-faint)' }}>
-                Register your first project on the Apply page.
+                Audition your first product to open the dashboard.
               </p>
             </div>
           ) : (

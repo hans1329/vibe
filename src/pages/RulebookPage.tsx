@@ -82,7 +82,7 @@ export function RulebookPage() {
               ['Valedictorian', '≈0.5% · 1 per season',  '100% entry fee refund + $500 bonus · Hall of Fame · media exposure · special NFT.'],
               ['Honors',        'Top 5% (excl. Valedictorian)', '85% refund · Hall of Fame · certification badge · featured.'],
               ['Graduate',      'Top 20% (excl. Honors)', '70% refund · graduation badge · full Build Brief publicly revealed.'],
-              ['Retry',         'Bottom 80%',            'No refund · AI analysis report private option · can reapply next season.'],
+              ['Retry',         'Bottom 80%',            'No refund · audit report private option · can reapply next season.'],
             ]}
           />
         </Section>
@@ -162,14 +162,13 @@ export function RulebookPage() {
 
         <Section title="8 · Refunds & payments" anchor="payments">
           <P>
-            The $99 application fee is a <B>competition entry fee</B>. It is
+            The $99 audition fee is a <B>competition entry fee</B>. It is
             conditionally refunded based on graduation tier at season end.
             Refunds are processed within 5 business days of Graduation Day.
           </P>
           <P>
-            During the launch event (through 2026-07-18), members get their
-            first 4 applications free — the application fee kicks in from the
-            5th onward.
+            Every member gets their first 3 auditions free — the audition fee
+            kicks in from the 4th onward.
           </P>
         </Section>
 

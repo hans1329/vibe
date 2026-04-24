@@ -138,7 +138,7 @@ export function LandingPage() {
               { grade: 'Valedictorian', pct: '≈0.5% (1 fixed)',  refund: '100% + $500 bonus', color: '#F0C040', perks: 'Hall of Fame · 10K media exposure · 1wk featured · Special NFT' },
               { grade: 'Honors',        pct: 'Top 5%',           refund: '85%',               color: '#A78BFA', perks: 'Hall of Fame · Cert badge · Featured · NFT' },
               { grade: 'Graduate',      pct: 'Top 20%',          refund: '70%',               color: '#60A5FA', perks: 'Grad badge · Brief full reveal · MD marketplace access' },
-              { grade: 'Retry',         pct: 'Bottom 80%',       refund: '0%',                color: '#6B7280', perks: 'AI analysis report · Brief private option · Retry next season' },
+              { grade: 'Retry',         pct: 'Bottom 80%',       refund: '0%',                color: '#6B7280', perks: 'Audit report · Brief private option · Retry next season' },
             ].map(({ grade, pct, refund, color, perks }) => (
               <div key={grade} className="card-navy p-5 transition-all hover:border-gold-500/20" style={{ borderTop: `3px solid ${color}` }}>
                 <div className="font-display font-bold text-base mb-0.5" style={{ color }}>{grade}</div>

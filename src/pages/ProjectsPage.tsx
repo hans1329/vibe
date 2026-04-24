@@ -44,7 +44,7 @@ export function ProjectsPage() {
                 <span style={{ color: 'rgba(255,255,255,0.12)' }}>·</span>
                 <div className="flex items-center gap-3 font-mono text-xs">
                   <span style={{ color: 'var(--text-secondary)' }}>
-                    <span style={{ color: 'var(--cream)' }}>{summary.total}</span> applicants
+                    <span style={{ color: 'var(--cream)' }}>{summary.total}</span> auditioning
                   </span>
                   <span style={{ color: 'var(--text-secondary)' }}>
                     <span style={{ color: '#F0C040' }}>{summary.active}</span> live
@@ -62,7 +62,7 @@ export function ProjectsPage() {
               className="font-mono text-[11px] font-medium tracking-wide px-3 py-1.5 flex-shrink-0"
               style={{ background: 'var(--gold-500)', color: 'var(--navy-900)', border: 'none', borderRadius: '2px', textDecoration: 'none' }}
             >
-              APPLY →
+              AUDITION →
             </NavLink>
           )}
         </div>

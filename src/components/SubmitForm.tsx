@@ -228,8 +228,8 @@ export function SubmitForm({ onComplete }: SubmitFormProps) {
           Free quota used.
         </h3>
         <p className="font-light mb-2" style={{ color: 'rgba(248,245,238,0.6)' }}>
-          You've already submitted {eligibility.priorCount} applications. The first {FREE_REGISTRATIONS_PER_MEMBER} per
-          member are free — your next application needs the $${priceDollars} discovery · exposure · fandom fee
+          You've already auditioned {eligibility.priorCount} products. The first {FREE_REGISTRATIONS_PER_MEMBER} per
+          member are free — your next audition needs the $${priceDollars} discovery · exposure · fandom fee
           (conditional refund on graduation).
         </p>
         <div className="mt-6 mb-4 px-4 py-3 font-mono text-xs tracking-wide" style={{
@@ -239,7 +239,7 @@ export function SubmitForm({ onComplete }: SubmitFormProps) {
           STRIPE CHECKOUT · COMING SOON
         </div>
         <p className="font-mono text-xs" style={{ color: 'rgba(248,245,238,0.4)' }}>
-          Payment integration is the final piece of V0.5. Until Stripe is live, additional applications
+          Payment integration is the final piece of V0.5. Until Stripe is live, additional auditions
           are paused for accounts past the free quota.
         </p>
       </div>
