@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import type { Project } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
@@ -46,12 +47,20 @@ export function ProjectPreviewModal({ project: p, onClose, creator: creatorProp,
   const isOwner = !!user && user.id === p.creator_id
   const canForecast = !!user && !isOwner
   const scoreColor = p.score_total >= 75 ? '#00D4AA' : p.score_total >= 50 ? '#F0C040' : '#C8102E'
-  const creatorName = resolveCreatorName({ display_name: creator?.display_name, creator_name: p.creator_name })
+  const creatorLoading = !!p.creator_id && creator === undefined
+  const creatorName = resolveCreatorName({
+    display_name: creator?.display_name,
+    creator_name: p.creator_name,
+    loading: creatorLoading,
+  })
 
-  return (
+  // Portal to document.body so the fixed backdrop escapes ProjectsPage's
+  // `z-10` stacking context (without the portal, footer — also z-10 but
+  // later in the DOM — overlaps this modal on scroll).
+  return createPortal(
     <>
       <div
-        className="fixed inset-0 z-50 flex items-center justify-center px-4 py-8"
+        className="fixed inset-0 z-[100] flex items-center justify-center px-4 py-8"
         style={{ background: 'rgba(6,12,26,0.85)', backdropFilter: 'blur(6px)' }}
         onClick={onClose}
       >
@@ -252,7 +261,8 @@ export function ProjectPreviewModal({ project: p, onClose, creator: creatorProp,
       {forecastOpen && (
         <ForecastModal project={p} onClose={() => setForecastOpen(false)} onCast={() => setForecastOpen(false)} />
       )}
-    </>
+    </>,
+    document.body,
   )
 }
 

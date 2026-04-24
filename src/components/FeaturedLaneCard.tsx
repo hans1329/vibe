@@ -31,7 +31,12 @@ export function FeaturedLaneCard({ project: p, accent, hideScore, creator }: Fea
   const navigate = useNavigate()
   const tone = TONE_COLOR[accent.tone]
   const gradeColor = GRADE_COLORS[p.creator_grade] || '#6B7280'
-  const creatorName = resolveCreatorName({ display_name: creator?.display_name, creator_name: p.creator_name })
+  const creatorLoading = !!p.creator_id && creator === undefined
+  const creatorName = resolveCreatorName({
+    display_name: creator?.display_name,
+    creator_name: p.creator_name,
+    loading: creatorLoading,
+  })
   const creatorInitial = creatorName.slice(0, 1).toUpperCase()
 
   return (

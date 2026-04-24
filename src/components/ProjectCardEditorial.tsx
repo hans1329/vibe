@@ -156,7 +156,11 @@ export function ProjectCardEditorial({
                 : (creator?.display_name || p.creator_name || 'A').slice(0, 1).toUpperCase()}
             </div>
             <div className="min-w-0 font-mono text-[11px] leading-tight truncate" style={{ color: 'var(--text-primary)' }}>
-              {resolveCreatorName({ display_name: creator?.display_name, creator_name: p.creator_name })}
+              {resolveCreatorName({
+                display_name: creator?.display_name,
+                creator_name: p.creator_name,
+                loading: !!p.creator_id && creator === undefined,
+              })}
               <span className="ml-1" style={{ color: gc }}>· {p.creator_grade}</span>
             </div>
           </div>

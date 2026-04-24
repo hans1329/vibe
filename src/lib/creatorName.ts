@@ -17,11 +17,18 @@
 export interface CreatorNameInput {
   display_name?: string | null
   creator_name?: string | null   // snapshot stored on projects rows at submit
+  // When true, the caller is still fetching creator data. Return an empty
+  // string instead of FALLBACK_NAME so cards don't flash "Unnamed" before
+  // the real display_name lands. Callers set this to
+  //   `creator === undefined && !!project.creator_id`
+  // for lists that lazy-load creators via fetchCreatorsByIds.
+  loading?: boolean
 }
 
 export const FALLBACK_NAME = 'Unnamed'
 
 export function resolveCreatorName(input: CreatorNameInput): string {
+  if (input.loading) return ''
   if (input.display_name && input.display_name.trim().length > 0) {
     return input.display_name.trim()
   }
@@ -34,5 +41,6 @@ export function resolveCreatorName(input: CreatorNameInput): string {
 // First-letter fallback for avatar tile. Mirrors resolveCreatorName's
 // priority so the initial always matches the rendered label.
 export function resolveCreatorInitial(input: CreatorNameInput): string {
+  if (input.loading) return ''
   return resolveCreatorName(input).slice(0, 1).toUpperCase()
 }

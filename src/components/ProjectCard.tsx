@@ -80,7 +80,12 @@ export function ProjectCard({ project: p, delta, hideScore, onForecast, showFore
   const isOwner = !!user && user.id === p.creator_id
   const canForecast = showForecastButton && !!user && !isOwner && !!onForecast
   const statusStyle = STATUS_COLORS[p.status] ?? STATUS_COLORS.active
-  const creatorName = resolveCreatorName({ display_name: creator?.display_name, creator_name: p.creator_name })
+  const creatorLoading = !!p.creator_id && creator === undefined
+  const creatorName = resolveCreatorName({
+    display_name: creator?.display_name,
+    creator_name: p.creator_name,
+    loading: creatorLoading,
+  })
   const creatorInitial = creatorName.slice(0, 1).toUpperCase()
 
   return (
