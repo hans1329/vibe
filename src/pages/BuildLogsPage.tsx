@@ -2,14 +2,17 @@
 // P4a read-only. Editor lands in P4b, auto-seed lands with Season-end engine (P8).
 
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { CommunityLayout } from '../components/CommunityLayout'
 import { CommunityPostCard } from '../components/CommunityPostCard'
 import { CommunityTagFilter } from '../components/CommunityTagFilter'
 import { listPosts, type PostWithAuthor } from '../lib/community'
+import { useAuth } from '../lib/auth'
 
 export function BuildLogsPage() {
   const [tag, setTag] = useState<string | null>(null)
   const [posts, setPosts] = useState<PostWithAuthor[] | null>(null)
+  const { user } = useAuth()
 
   useEffect(() => {
     setPosts(null)
@@ -18,7 +21,7 @@ export function BuildLogsPage() {
 
   return (
     <CommunityLayout>
-      <div className="mb-5 flex items-center justify-between flex-wrap gap-3">
+      <div className="mb-5 flex items-start justify-between flex-wrap gap-3">
         <div>
           <div className="font-mono text-xs tracking-widest" style={{ color: 'var(--gold-500)' }}>
             // BUILD LOGS
@@ -30,6 +33,7 @@ export function BuildLogsPage() {
             Auto-seeded on graduation · open to WIP logs too
           </div>
         </div>
+        {user && <NewPostButton to="/community/build-logs/new" label="New Build Log" />}
       </div>
 
       <CommunityTagFilter active={tag} onChange={setTag} className="mb-5" />
@@ -60,5 +64,25 @@ function EmptyState({ label }: { label: string }) {
     >
       {label}
     </div>
+  )
+}
+
+export function NewPostButton({ to, label }: { to: string; label: string }) {
+  return (
+    <Link
+      to={to}
+      className="px-4 py-2 font-mono text-xs tracking-wide transition-all"
+      style={{
+        background: 'var(--gold-500)',
+        color: 'var(--navy-900)',
+        border: 'none',
+        borderRadius: '2px',
+        textDecoration: 'none',
+      }}
+      onMouseEnter={e => (e.currentTarget.style.background = 'var(--gold-400)')}
+      onMouseLeave={e => (e.currentTarget.style.background = 'var(--gold-500)')}
+    >
+      + {label}
+    </Link>
   )
 }

@@ -5,13 +5,16 @@
 import { useEffect, useState } from 'react'
 import { CommunityLayout } from '../components/CommunityLayout'
 import { CommunityPostCard } from '../components/CommunityPostCard'
+import { NewPostButton } from './BuildLogsPage'
 import { listPosts, ASK_SUBTYPES, type PostWithAuthor } from '../lib/community'
+import { useAuth } from '../lib/auth'
 
 type Subtype = keyof typeof ASK_SUBTYPES | 'all'
 
 export function AsksPage() {
   const [subtype, setSubtype] = useState<Subtype>('all')
   const [posts, setPosts]     = useState<PostWithAuthor[] | null>(null)
+  const { user } = useAuth()
 
   useEffect(() => {
     setPosts(null)
@@ -22,16 +25,19 @@ export function AsksPage() {
 
   return (
     <CommunityLayout>
-      <div className="mb-5">
-        <div className="font-mono text-xs tracking-widest" style={{ color: 'var(--gold-500)' }}>
-          // ASKS
+      <div className="mb-5 flex items-start justify-between flex-wrap gap-3">
+        <div>
+          <div className="font-mono text-xs tracking-widest" style={{ color: 'var(--gold-500)' }}>
+            // ASKS
+          </div>
+          <div className="font-display font-bold text-2xl mt-1" style={{ color: 'var(--cream)' }}>
+            Looking for · Available · Feedback
+          </div>
+          <div className="font-mono text-[11px] mt-1" style={{ color: 'var(--text-muted)' }}>
+            One-line asks with a 30-day TTL
+          </div>
         </div>
-        <div className="font-display font-bold text-2xl mt-1" style={{ color: 'var(--cream)' }}>
-          Looking for · Available · Feedback
-        </div>
-        <div className="font-mono text-[11px] mt-1" style={{ color: 'var(--text-muted)' }}>
-          One-line asks with a 30-day TTL
-        </div>
+        {user && <NewPostButton to="/community/asks/new" label="New Ask" />}
       </div>
 
       <div className="flex items-center gap-1.5 mb-6 flex-wrap">

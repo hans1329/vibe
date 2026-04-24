@@ -6,7 +6,9 @@ import { useEffect, useState } from 'react'
 import { CommunityLayout } from '../components/CommunityLayout'
 import { CommunityPostCard } from '../components/CommunityPostCard'
 import { CommunityTagFilter } from '../components/CommunityTagFilter'
+import { NewPostButton } from './BuildLogsPage'
 import { listPosts, STACK_SUBTYPES, type PostWithAuthor } from '../lib/community'
+import { useAuth } from '../lib/auth'
 
 type Subtype = keyof typeof STACK_SUBTYPES | 'all'
 
@@ -14,6 +16,7 @@ export function StacksPage() {
   const [subtype, setSubtype] = useState<Subtype>('all')
   const [tag, setTag] = useState<string | null>(null)
   const [posts, setPosts] = useState<PostWithAuthor[] | null>(null)
+  const { user } = useAuth()
 
   useEffect(() => {
     setPosts(null)
@@ -24,16 +27,19 @@ export function StacksPage() {
 
   return (
     <CommunityLayout>
-      <div className="mb-5">
-        <div className="font-mono text-xs tracking-widest" style={{ color: 'var(--gold-500)' }}>
-          // STACKS
+      <div className="mb-5 flex items-start justify-between flex-wrap gap-3">
+        <div>
+          <div className="font-mono text-xs tracking-widest" style={{ color: 'var(--gold-500)' }}>
+            // STACKS
+          </div>
+          <div className="font-display font-bold text-2xl mt-1" style={{ color: 'var(--cream)' }}>
+            Recipes · prompts · tool reviews
+          </div>
+          <div className="font-mono text-[11px] mt-1" style={{ color: 'var(--text-muted)' }}>
+            Reusable combos that stopped working around you
+          </div>
         </div>
-        <div className="font-display font-bold text-2xl mt-1" style={{ color: 'var(--cream)' }}>
-          Recipes · prompts · tool reviews
-        </div>
-        <div className="font-mono text-[11px] mt-1" style={{ color: 'var(--text-muted)' }}>
-          Reusable combos that stopped working around you
-        </div>
+        {user && <NewPostButton to="/community/stacks/new" label="New Stack" />}
       </div>
 
       {/* Subtype pills */}

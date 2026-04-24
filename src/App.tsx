@@ -14,6 +14,7 @@ import { BuildLogsPage } from './pages/BuildLogsPage'
 import { StacksPage } from './pages/StacksPage'
 import { AsksPage } from './pages/AsksPage'
 import { OfficeHoursPage } from './pages/OfficeHoursPage'
+import { NewCommunityPostPage } from './pages/NewCommunityPostPage'
 import { Navigate } from 'react-router-dom'
 import './index.css'
 
@@ -35,11 +36,13 @@ export default function App() {
         <Route path="/rulebook"         element={<RulebookPage />} />
 
         {/* Creator Community (§13-B) */}
-        <Route path="/community"                 element={<Navigate to="/community/build-logs" replace />} />
-        <Route path="/community/build-logs"      element={<BuildLogsPage />} />
-        <Route path="/community/stacks"          element={<StacksPage />} />
-        <Route path="/community/asks"            element={<AsksPage />} />
-        <Route path="/community/office-hours"    element={<OfficeHoursPage />} />
+        <Route path="/community"                     element={<Navigate to="/community/build-logs" replace />} />
+        <Route path="/community/build-logs"          element={<BuildLogsPage />} />
+        <Route path="/community/stacks"              element={<StacksPage />} />
+        <Route path="/community/asks"                element={<AsksPage />} />
+        <Route path="/community/office-hours"        element={<OfficeHoursPage />} />
+        {/* `typeSegment` is read by the editor to pick build_log / stack / ask */}
+        <Route path="/community/:typeSegment/new"    element={<NewCommunityPostPage />} />
         <Route path="*"                 element={<LandingPage />} />
       </Routes>
 
