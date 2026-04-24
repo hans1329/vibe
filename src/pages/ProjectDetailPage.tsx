@@ -19,7 +19,7 @@ import { ScoreTimeline } from '../components/ScoreTimeline'
 import { ForecastModal } from '../components/ForecastModal'
 import { ApplaudButton } from '../components/ApplaudButton'
 import { EditProjectModal } from '../components/EditProjectModal'
-import { IconForecast } from '../components/icons'
+import { ProjectActionFooter } from '../components/ProjectActionFooter'
 import { fetchAuditionStreak } from '../lib/auditionStreak'
 import { OwnerBriefPanel } from '../components/OwnerBriefPanel'
 import { GraduationStanding } from '../components/GraduationStanding'
@@ -296,16 +296,20 @@ export function ProjectDetailPage() {
                     GITHUB ↗
                   </a>
                 )}
+                {/* Forecast + Applaud — §4 emoji CTA carve-out for differentiation
+                    from OPEN LIVE / GITHUB pills. Non-owner, phase-aware. */}
                 {canForecast && isVotingPhase && (
                   <button
                     onClick={() => setForecastOpen(true)}
                     className="font-mono text-xs font-medium tracking-wide px-3 py-1.5"
                     style={{ background: 'rgba(240,192,64,0.08)', color: 'var(--gold-500)', border: '1px solid rgba(240,192,64,0.3)', borderRadius: '2px', cursor: 'pointer' }}
                   >
-                    <span className="inline-flex items-center justify-center gap-1.5"><IconForecast size={12} /> FORECAST</span>
+                    <span className="inline-flex items-center justify-center gap-1.5">
+                      <span aria-hidden="true" style={{ fontSize: 14, lineHeight: 1 }}>🎯</span>
+                      FORECAST
+                    </span>
                   </button>
                 )}
-                {/* v2 Applaud (§7.5) · light toggle · any phase · non-owner only */}
                 {!isOwner && (
                   <ApplaudButton
                     targetType="product"
@@ -313,6 +317,7 @@ export function ProjectDetailPage() {
                     viewerMemberId={user?.id ?? null}
                     isOwnContent={isOwner}
                     size="sm"
+                    variant="emoji"
                     onChange={() => fetchProjectApplauds(project.id).then(setApplauds)}
                   />
                 )}
@@ -459,6 +464,15 @@ export function ProjectDetailPage() {
             </section>
           )}
         </div>
+
+        {/* Casual bottom action row — second chance for visitors to react */}
+        <ProjectActionFooter
+          projectId={project.id}
+          viewerMemberId={user?.id ?? null}
+          isOwner={isOwner}
+          seasonPhase={seasonPhase}
+          onForecastClick={() => setForecastOpen(true)}
+        />
       </div>
 
       {forecastOpen && (
