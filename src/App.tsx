@@ -10,6 +10,11 @@ import { LibraryPage } from './pages/LibraryPage'
 import { LibraryDetailPage } from './pages/LibraryDetailPage'
 import { ScoutsPage } from './pages/ScoutsPage'
 import { RulebookPage } from './pages/RulebookPage'
+import { BuildLogsPage } from './pages/BuildLogsPage'
+import { StacksPage } from './pages/StacksPage'
+import { AsksPage } from './pages/AsksPage'
+import { OfficeHoursPage } from './pages/OfficeHoursPage'
+import { Navigate } from 'react-router-dom'
 import './index.css'
 
 export default function App() {
@@ -28,6 +33,13 @@ export default function App() {
         <Route path="/library/:id"      element={<LibraryDetailPage />} />
         <Route path="/scouts"           element={<ScoutsPage />} />
         <Route path="/rulebook"         element={<RulebookPage />} />
+
+        {/* Creator Community (§13-B) */}
+        <Route path="/community"                 element={<Navigate to="/community/build-logs" replace />} />
+        <Route path="/community/build-logs"      element={<BuildLogsPage />} />
+        <Route path="/community/stacks"          element={<StacksPage />} />
+        <Route path="/community/asks"            element={<AsksPage />} />
+        <Route path="/community/office-hours"    element={<OfficeHoursPage />} />
         <Route path="*"                 element={<LandingPage />} />
       </Routes>
 
@@ -37,6 +49,8 @@ export default function App() {
         </div>
         <div className="flex items-center justify-center gap-4 mb-3 font-mono text-xs" style={{ color: 'var(--text-secondary)' }}>
           <a href="/projects"  style={{ color: 'inherit', textDecoration: 'none' }}>Projects</a>
+          <span style={{ color: 'rgba(255,255,255,0.15)' }}>·</span>
+          <a href="/community" style={{ color: 'inherit', textDecoration: 'none' }}>Community</a>
           <span style={{ color: 'rgba(255,255,255,0.15)' }}>·</span>
           <a href="/library"   style={{ color: 'inherit', textDecoration: 'none' }}>Library</a>
           <span style={{ color: 'rgba(255,255,255,0.15)' }}>·</span>

@@ -73,6 +73,10 @@ export function Nav() {
             style={({ isActive }) => linkStyle(isActive)}>
             Projects
           </NavLink>
+          <NavLink to="/community" className="text-sm font-mono tracking-wide"
+            style={({ isActive }) => linkStyle(isActive)}>
+            Community
+          </NavLink>
           <NavLink to="/library" className="text-sm font-mono tracking-wide"
             style={({ isActive }) => linkStyle(isActive)}>
             Library
