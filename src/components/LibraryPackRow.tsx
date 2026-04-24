@@ -24,6 +24,7 @@ import {
   IconGraduation,
   IconWand,
 } from './icons'
+import { resolveCreatorName, resolveCreatorInitial } from '../lib/creatorName'
 
 const GRADE_COLORS: Record<CreatorGrade, string> = {
   Rookie: '#6B7280', Builder: '#60A5FA', Maker: '#00D4AA',
@@ -55,7 +56,7 @@ export function LibraryPackRow({ item }: Props) {
   const format     = item.target_format
   const intent     = item.intent
   const FormatIcon = format ? FORMAT_ICON[format] : IconArtifactGeneric
-  const authorName = item.author_name || 'Creator'
+  const authorName = resolveCreatorName({ display_name: item.author_name, email: item.author_email })
   const authorGrade = (item.author_grade ?? item.current_author_grade) as CreatorGrade | null
   const gradeColor = authorGrade ? GRADE_COLORS[authorGrade] : '#6B7280'
   const priceLabel = item.is_free
@@ -147,7 +148,7 @@ export function LibraryPackRow({ item }: Props) {
             >
               {item.author_avatar_url
                 ? <img src={item.author_avatar_url} alt="" className="w-full h-full" style={{ objectFit: 'cover' }} />
-                : authorName.slice(0, 1).toUpperCase()}
+                : resolveCreatorInitial({ display_name: item.author_name, email: item.author_email })}
             </span>
             <span>by <strong style={{ color: 'var(--cream)' }}>{authorName}</strong></span>
             {authorGrade && (

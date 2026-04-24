@@ -11,6 +11,7 @@ import { CommunityLayout } from '../components/CommunityLayout'
 import { ApplaudButton } from '../components/ApplaudButton'
 import { PostBody } from '../components/PostBody'
 import { getPost, STACK_SUBTYPES, ASK_SUBTYPES, type PostWithAuthor } from '../lib/community'
+import { resolveCreatorName, resolveCreatorInitial } from '../lib/creatorName'
 import { useAuth } from '../lib/auth'
 import { supabase } from '../lib/supabase'
 import type { ApplaudTargetType, Project } from '../lib/supabase'
@@ -159,9 +160,9 @@ export function CommunityPostDetailPage() {
             >
               {post.author?.avatar_url
                 ? <img src={post.author.avatar_url} alt="" className="w-full h-full" style={{ objectFit: 'cover' }} />
-                : (post.author?.display_name ?? '?').slice(0, 1).toUpperCase()}
+                : resolveCreatorInitial({ display_name: post.author?.display_name })}
             </span>
-            <span>by <strong style={{ color: 'var(--cream)' }}>{post.author?.display_name ?? 'Anonymous'}</strong></span>
+            <span>by <strong style={{ color: 'var(--cream)' }}>{resolveCreatorName({ display_name: post.author?.display_name })}</strong></span>
             {post.author?.creator_grade && (
               <>
                 <span style={{ color: 'rgba(255,255,255,0.15)' }}>·</span>

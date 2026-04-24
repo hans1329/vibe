@@ -163,6 +163,25 @@ export function ProfilePage() {
                 <div className="font-mono text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>
                   {user.email}
                 </div>
+                {/* Gentle nudge when display_name is still unset · others see your
+                    email prefix on cards until you set one. */}
+                {!member?.display_name && !editingName && (
+                  <div
+                    className="mt-3 pl-3 py-2 pr-3 font-mono text-[11px]"
+                    style={{
+                      borderLeft: '2px solid var(--gold-500)',
+                      background: 'rgba(240,192,64,0.06)',
+                      color: 'var(--text-primary)',
+                      lineHeight: 1.55,
+                    }}
+                  >
+                    <span style={{ color: 'var(--gold-500)' }}>Display name not set.</span>
+                    <span style={{ color: 'var(--text-secondary)' }}>
+                      {' '}Everyone else sees your email prefix on project cards and library rows.
+                      Click <strong>EDIT</strong> above to introduce yourself.
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
 

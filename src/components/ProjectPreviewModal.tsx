@@ -5,6 +5,7 @@ import { useAuth } from '../lib/auth'
 import { fetchProjectCreator, type CreatorIdentity } from '../lib/projectQueries'
 import { ForecastModal } from './ForecastModal'
 import { IconForecast } from './icons'
+import { resolveCreatorName } from '../lib/creatorName'
 
 interface Props {
   project: Project
@@ -45,7 +46,7 @@ export function ProjectPreviewModal({ project: p, onClose, creator: creatorProp,
   const isOwner = !!user && user.id === p.creator_id
   const canForecast = !!user && !isOwner
   const scoreColor = p.score_total >= 75 ? '#00D4AA' : p.score_total >= 50 ? '#F0C040' : '#C8102E'
-  const creatorName = creator?.display_name || p.creator_name || 'Anonymous'
+  const creatorName = resolveCreatorName({ display_name: creator?.display_name, creator_name: p.creator_name })
 
   return (
     <>

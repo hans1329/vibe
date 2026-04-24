@@ -21,6 +21,7 @@ import { ApplaudButton } from '../components/ApplaudButton'
 import { EditProjectModal } from '../components/EditProjectModal'
 import { ProjectActionFooter } from '../components/ProjectActionFooter'
 import { fetchAuditionStreak } from '../lib/auditionStreak'
+import { resolveCreatorName, resolveCreatorInitial } from '../lib/creatorName'
 import { OwnerBriefPanel } from '../components/OwnerBriefPanel'
 import { GraduationStanding } from '../components/GraduationStanding'
 import { useAuth } from '../lib/auth'
@@ -263,11 +264,11 @@ export function ProjectDetailPage() {
                         {creator.avatar_url ? (
                           <img src={creator.avatar_url} alt="" className="w-full h-full" style={{ objectFit: 'cover' }} />
                         ) : (
-                          (creator.display_name ?? project.creator_name ?? '?').slice(0, 1).toUpperCase()
+                          resolveCreatorInitial({ display_name: creator.display_name, creator_name: project.creator_name })
                         )}
                       </div>
                       <div className="font-mono text-xs" style={{ color: 'var(--cream)' }}>
-                        by <strong>{creator.display_name || project.creator_name || 'Anonymous'}</strong>
+                        by <strong>{resolveCreatorName({ display_name: creator.display_name, creator_name: project.creator_name })}</strong>
                       </div>
                     </div>
                   )}

@@ -3,6 +3,7 @@ import type { Project } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import type { CreatorIdentity } from '../lib/projectQueries'
 import { IconForecast, IconApplaud } from './icons'
+import { resolveCreatorName } from '../lib/creatorName'
 
 /**
  * How clicking the card body behaves. The grid intercepts with `preview` so
@@ -79,7 +80,7 @@ export function ProjectCard({ project: p, delta, hideScore, onForecast, showFore
   const isOwner = !!user && user.id === p.creator_id
   const canForecast = showForecastButton && !!user && !isOwner && !!onForecast
   const statusStyle = STATUS_COLORS[p.status] ?? STATUS_COLORS.active
-  const creatorName = creator?.display_name || p.creator_name || 'Anonymous'
+  const creatorName = resolveCreatorName({ display_name: creator?.display_name, creator_name: p.creator_name })
   const creatorInitial = creatorName.slice(0, 1).toUpperCase()
 
   return (

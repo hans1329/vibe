@@ -5,6 +5,7 @@
 import { Link } from 'react-router-dom'
 import type { PostWithAuthor } from '../lib/community'
 import { STACK_SUBTYPES, ASK_SUBTYPES } from '../lib/community'
+import { resolveCreatorName, resolveCreatorInitial } from '../lib/creatorName'
 
 interface Props {
   post: PostWithAuthor
@@ -85,9 +86,9 @@ export function CommunityPostCard({ post }: Props) {
         >
           {post.author?.avatar_url
             ? <img src={post.author.avatar_url} alt="" className="w-full h-full" style={{ objectFit: 'cover' }} />
-            : (post.author?.display_name ?? '?').slice(0, 1).toUpperCase()}
+            : resolveCreatorInitial({ display_name: post.author?.display_name })}
         </span>
-        <span>{post.author?.display_name ?? 'Anonymous'}</span>
+        <span>{resolveCreatorName({ display_name: post.author?.display_name })}</span>
         {post.author?.creator_grade && (
           <>
             <span style={{ color: 'rgba(255,255,255,0.15)' }}>·</span>

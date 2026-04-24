@@ -2,6 +2,7 @@ import { useNavigate } from 'react-router-dom'
 import type { Project } from '../lib/supabase'
 import type { CreatorIdentity } from '../lib/projectQueries'
 import { IconForecast, IconApplaud, IconGraduation } from './icons'
+import { resolveCreatorName } from '../lib/creatorName'
 
 // Editorial-style card. Treat every submission as a crafted piece —
 // generous image, Playfair headline, paragraph-scale description. Replaces
@@ -155,7 +156,7 @@ export function ProjectCardEditorial({
                 : (creator?.display_name || p.creator_name || 'A').slice(0, 1).toUpperCase()}
             </div>
             <div className="min-w-0 font-mono text-[11px] leading-tight truncate" style={{ color: 'var(--text-primary)' }}>
-              {creator?.display_name || p.creator_name || 'Anonymous'}
+              {resolveCreatorName({ display_name: creator?.display_name, creator_name: p.creator_name })}
               <span className="ml-1" style={{ color: gc }}>· {p.creator_grade}</span>
             </div>
           </div>

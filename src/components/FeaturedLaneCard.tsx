@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom'
 import type { Project } from '../lib/supabase'
 import type { CreatorIdentity } from '../lib/projectQueries'
+import { resolveCreatorName } from '../lib/creatorName'
 
 export interface LaneCardAccent {
   tone: 'rookie' | 'climber' | 'graduating'
@@ -30,7 +31,7 @@ export function FeaturedLaneCard({ project: p, accent, hideScore, creator }: Fea
   const navigate = useNavigate()
   const tone = TONE_COLOR[accent.tone]
   const gradeColor = GRADE_COLORS[p.creator_grade] || '#6B7280'
-  const creatorName = creator?.display_name || p.creator_name || 'Anonymous'
+  const creatorName = resolveCreatorName({ display_name: creator?.display_name, creator_name: p.creator_name })
   const creatorInitial = creatorName.slice(0, 1).toUpperCase()
 
   return (

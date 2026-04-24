@@ -14,6 +14,7 @@ import { FormatIcon } from '../components/iconMaps'
 import { IconGraduation, IconWand } from '../components/icons'
 import { useAuth } from '../lib/auth'
 import { AuthModal } from '../components/AuthModal'
+import { resolveCreatorName, resolveCreatorInitial } from '../lib/creatorName'
 
 const GRADE_COLORS: Record<CreatorGrade, string> = {
   Rookie: '#6B7280', Builder: '#60A5FA', Maker: '#00D4AA',
@@ -97,7 +98,7 @@ export function LibraryDetailPage() {
     )
   }
 
-  const authorName = item.author_name || 'Creator'
+  const authorName = resolveCreatorName({ display_name: item.author_name, email: item.author_email })
   const authorGrade = item.author_grade as CreatorGrade | null
   const gradeColor = authorGrade ? GRADE_COLORS[authorGrade] : '#6B7280'
   const applied    = item.projects_applied_count ?? 0
@@ -215,7 +216,7 @@ export function LibraryDetailPage() {
               >
                 {item.author_avatar_url
                   ? <img src={item.author_avatar_url} alt="" className="w-full h-full" style={{ objectFit: 'cover' }} />
-                  : authorName.slice(0, 1).toUpperCase()}
+                  : resolveCreatorInitial({ display_name: item.author_name, email: item.author_email })}
               </div>
               <span className="font-mono text-xs" style={{ color: 'var(--cream)' }}>{authorName}</span>
               {authorGrade && (
