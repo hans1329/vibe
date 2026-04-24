@@ -2,9 +2,31 @@ import { useState, useEffect, useRef } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../lib/auth'
 import { AuthModal } from './AuthModal'
+import { IconForecast } from './icons'
+import { SCOUT_MONTHLY_VOTES, type ScoutTier } from '../lib/supabase'
 
 const TIER_COLOR: Record<string, string> = {
   Bronze: '#CD7F32', Silver: '#C0C0C0', Gold: '#F0C040', Platinum: '#E5E4E2',
+}
+
+// Calendar month boundary for vote quota reset. If `votes_reset_at` rolled over
+// the month already, treat used as 0 until the backend trigger clears it.
+function remainingVotesFor(tier: ScoutTier, used: number, resetAt: string | null): number {
+  const quota = SCOUT_MONTHLY_VOTES[tier]
+  const now = new Date()
+  if (resetAt) {
+    const reset = new Date(resetAt)
+    const currentMonth = now.getUTCFullYear() * 12 + now.getUTCMonth()
+    const resetMonth   = reset.getUTCFullYear() * 12 + reset.getUTCMonth()
+    if (resetMonth < currentMonth) return quota
+  }
+  return Math.max(0, quota - (used ?? 0))
+}
+
+function daysUntilNextReset(): number {
+  const now = new Date()
+  const next = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1))
+  return Math.max(0, Math.ceil((next.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)))
 }
 
 export function Nav() {
@@ -35,9 +57,14 @@ export function Nav() {
     navigate('/submit')
   }
 
-  const tier = member?.tier ?? 'Bronze'
+  const tier = (member?.tier ?? 'Bronze') as ScoutTier
   const grade = member?.creator_grade ?? 'Rookie'
   const initial = (member?.display_name || user?.email || '?').slice(0, 1).toUpperCase()
+  const quota     = SCOUT_MONTHLY_VOTES[tier]
+  const used      = member?.monthly_votes_used ?? 0
+  const remaining = remainingVotesFor(tier, used, member?.votes_reset_at ?? null)
+  const tierColor = TIER_COLOR[tier]
+  const voteColor = remaining === 0 ? 'var(--text-muted)' : tierColor
 
   const linkStyle = (active: boolean) => ({
     color: active ? 'var(--gold-500)' : 'rgba(248,245,238,0.5)',
@@ -127,10 +154,11 @@ export function Nav() {
                 style={{ background: 'none', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '2px', cursor: 'pointer' }}
                 onMouseEnter={e => (e.currentTarget.style.borderColor = 'rgba(240,192,64,0.4)')}
                 onMouseLeave={e => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.12)')}
+                title={`${remaining} of ${quota} forecasts left this month`}
               >
                 <span
                   className="flex items-center justify-center w-6 h-6 font-mono text-xs font-bold overflow-hidden"
-                  style={{ background: member?.avatar_url ? 'var(--navy-800)' : TIER_COLOR[tier], color: 'var(--navy-900)', borderRadius: '2px' }}
+                  style={{ background: member?.avatar_url ? 'var(--navy-800)' : tierColor, color: 'var(--navy-900)', borderRadius: '2px' }}
                 >
                   {member?.avatar_url ? (
                     <img src={member.avatar_url} alt="" className="w-full h-full" style={{ objectFit: 'cover' }} />
@@ -139,6 +167,20 @@ export function Nav() {
                   )}
                 </span>
                 <span className="font-mono text-xs tracking-wide" style={{ color: 'var(--cream)' }}>{tier}</span>
+                {/* Forecast wallet chip — tier-tinted · § 9. Muted when depleted. */}
+                <span
+                  className="inline-flex items-center gap-1 font-mono text-[11px] tabular-nums px-1.5 py-0.5"
+                  style={{
+                    background: remaining === 0 ? 'rgba(255,255,255,0.04)' : `${tierColor}1A`,
+                    border: `1px solid ${remaining === 0 ? 'rgba(255,255,255,0.08)' : `${tierColor}55`}`,
+                    color: voteColor,
+                    borderRadius: '2px',
+                  }}
+                >
+                  <IconForecast size={10} />
+                  <span>{remaining}</span>
+                  <span style={{ color: 'var(--text-muted)' }}>/{quota}</span>
+                </span>
               </button>
 
               {menuOpen && (
@@ -159,10 +201,45 @@ export function Nav() {
                       {user.email}
                     </div>
                     <div className="flex justify-between items-center mt-1.5">
-                      <span className="font-mono text-[10px]" style={{ color: TIER_COLOR[tier] }}>{tier}</span>
+                      <span className="font-mono text-[10px]" style={{ color: tierColor }}>{tier}</span>
                       <span className="font-mono text-[10px]" style={{ color: 'var(--text-muted)' }}>{grade}</span>
                     </div>
                   </div>
+
+                  {/* Forecast wallet — prominent so Scouts know how many casts remain */}
+                  <NavLink
+                    to="/projects"
+                    onClick={() => setMenuOpen(false)}
+                    className="block px-3 py-2 mb-1 transition-colors"
+                    style={{
+                      background: remaining === 0 ? 'rgba(255,255,255,0.02)' : `${tierColor}12`,
+                      border: `1px solid ${remaining === 0 ? 'rgba(255,255,255,0.06)' : `${tierColor}40`}`,
+                      borderRadius: '2px',
+                      textDecoration: 'none',
+                    }}
+                    onMouseEnter={e => { if (remaining > 0) e.currentTarget.style.borderColor = `${tierColor}80` }}
+                    onMouseLeave={e => { e.currentTarget.style.borderColor = remaining === 0 ? 'rgba(255,255,255,0.06)' : `${tierColor}40` }}
+                  >
+                    <div className="flex items-center justify-between gap-2 mb-0.5">
+                      <span className="font-mono text-[10px] tracking-widest" style={{ color: 'var(--text-label)' }}>
+                        FORECAST WALLET
+                      </span>
+                      <span className="font-mono text-[10px] tabular-nums" style={{ color: voteColor }}>
+                        <IconForecast size={10} style={{ display: 'inline-block', verticalAlign: '-1px', marginRight: 3 }} />
+                        <strong>{remaining}</strong>
+                        <span style={{ color: 'var(--text-muted)' }}> / {quota}</span>
+                      </span>
+                    </div>
+                    {remaining === 0 ? (
+                      <div className="font-mono text-[10px]" style={{ color: 'var(--text-muted)' }}>
+                        Depleted · refills in {daysUntilNextReset()}d
+                      </div>
+                    ) : (
+                      <div className="font-mono text-[10px]" style={{ color: 'var(--text-secondary)' }}>
+                        Cast on any auditioning project
+                      </div>
+                    )}
+                  </NavLink>
                   <NavLink
                     to="/me"
                     onClick={() => setMenuOpen(false)}
