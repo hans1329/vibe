@@ -3,6 +3,7 @@ import { NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../lib/auth'
 import { AuthModal } from './AuthModal'
 import { IconForecast } from './icons'
+import { NotificationBell } from './NotificationBell'
 import { SCOUT_MONTHLY_VOTES, type ScoutTier } from '../lib/supabase'
 
 const TIER_COLOR: Record<string, string> = {
@@ -135,6 +136,9 @@ export function Nav() {
             Audition
           </button>
 
+          {/* Notification bell · auth-only */}
+          {user && <NotificationBell recipientId={user.id} />}
+
           {/* Auth area */}
           {!user ? (
             <button
@@ -167,20 +171,6 @@ export function Nav() {
                   )}
                 </span>
                 <span className="font-mono text-xs tracking-wide" style={{ color: 'var(--cream)' }}>{tier}</span>
-                {/* Forecast wallet chip — tier-tinted · § 9. Muted when depleted. */}
-                <span
-                  className="inline-flex items-center gap-1 font-mono text-[11px] tabular-nums px-1.5 py-0.5"
-                  style={{
-                    background: remaining === 0 ? 'rgba(255,255,255,0.04)' : `${tierColor}1A`,
-                    border: `1px solid ${remaining === 0 ? 'rgba(255,255,255,0.08)' : `${tierColor}55`}`,
-                    color: voteColor,
-                    borderRadius: '2px',
-                  }}
-                >
-                  <IconForecast size={10} />
-                  <span>{remaining}</span>
-                  <span style={{ color: 'var(--text-muted)' }}>/{quota}</span>
-                </span>
               </button>
 
               {menuOpen && (
