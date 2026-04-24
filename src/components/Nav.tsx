@@ -53,22 +53,24 @@ export function Nav() {
   return (
     <>
       <nav
-        className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-8 h-16 transition-all duration-300"
+        className="fixed top-0 left-0 right-0 z-50 flex items-center px-8 h-16 transition-all duration-300"
         style={{
           background: scrolled ? 'rgba(6, 12, 26, 0.92)' : 'transparent',
           backdropFilter: scrolled ? 'blur(16px)' : 'none',
           borderBottom: scrolled ? '1px solid rgba(240,192,64,0.1)' : 'none',
         }}
       >
-        {/* Logo */}
-        <NavLink to="/" className="flex items-center" style={{ textDecoration: 'none' }}>
-          <span className="font-display font-bold text-xl tracking-tight" style={{ color: 'var(--cream)' }}>
-            Commit<span style={{ color: 'var(--gold-500)' }}>.Show</span>
-          </span>
-        </NavLink>
+        {/* Left · Logo */}
+        <div className="flex-1 flex items-center">
+          <NavLink to="/" className="flex items-center" style={{ textDecoration: 'none' }}>
+            <span className="font-display font-bold text-xl tracking-tight" style={{ color: 'var(--cream)' }}>
+              Commit<span style={{ color: 'var(--gold-500)' }}>.Show</span>
+            </span>
+          </NavLink>
+        </div>
 
-        {/* Links */}
-        <div className="hidden md:flex items-center gap-8">
+        {/* Center · 4 primary menus */}
+        <div className="hidden md:flex items-center gap-8 flex-shrink-0">
           <NavLink to="/projects" className="text-sm font-mono tracking-wide"
             style={({ isActive }) => linkStyle(isActive)}>
             Projects
@@ -85,7 +87,10 @@ export function Nav() {
             style={({ isActive }) => linkStyle(isActive)}>
             Scouts
           </NavLink>
+        </div>
 
+        {/* Right · Audition CTA + Auth */}
+        <div className="flex-1 hidden md:flex items-center justify-end gap-4">
           <button
             onClick={handleApply}
             className="px-5 py-2 text-sm font-medium tracking-wide transition-all"
