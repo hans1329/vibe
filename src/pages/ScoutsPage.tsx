@@ -236,7 +236,8 @@ function BenefitRow({ k, v, vColor }: { k: string; v: string; vColor: string }) 
 function ScoutRow({ rank, member: m }: { rank: number; member: MemberStats }) {
   const tier = m.tier as ScoutTier
   const tierColor = TIER_COLOR[tier]
-  const displayName = m.display_name || m.email?.split('@')[0] || 'Member'
+  // display_name is always populated post 20260425130000_display_name_privacy.
+  const displayName = m.display_name || 'Member'
   const initial = displayName.slice(0, 1).toUpperCase()
   const rankBadge = `#${rank}`
 

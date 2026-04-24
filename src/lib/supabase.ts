@@ -389,9 +389,10 @@ export type MDPurchase = {
 
 // Free/Trophy pivot: md_library_feed now carries adoption stats that
 // replace the old price/revenue surface ("12 projects applied · 3 graduated").
+// author_email removed 2026-04-25 privacy migration — emails never leave
+// the members table via this view.
 export type MDLibraryFeedItem = MDLibraryItem & {
   author_name:               string | null
-  author_email:              string
   current_author_grade:      CreatorGrade
   author_avatar_url:         string | null
   source_project_name:       string | null   // from projects.project_name
