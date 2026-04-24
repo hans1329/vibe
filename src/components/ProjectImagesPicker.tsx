@@ -118,7 +118,7 @@ export function ProjectImagesPicker({ value, onChange, max = MAX_IMAGES_DEFAULT,
         The first image is your <strong style={{ color: 'var(--gold-500)' }}>primary thumbnail</strong> (shows on
         the feed and on graduation cards). We resize to max 1200×800 and convert to WebP automatically.
         {required && value.length === 0 && (
-          <> · <span style={{ color: 'var(--scarlet)' }}>At least one image is required to submit.</span></>
+          <> · <span style={{ color: 'var(--scarlet)' }}>At least one image is required to audition.</span></>
         )}
       </div>
     </div>

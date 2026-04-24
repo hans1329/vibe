@@ -16,7 +16,24 @@
       "Bash(grep -iE '^\\(vite|typescript\\)$')",
       "Bash(unset NODE_ENV)",
       "Bash(npm cache *)",
-      "Bash(git ls-tree *)"
+      "Bash(git ls-tree *)",
+      "Bash(git -C /Users/hans1/vibe add src/components/PostBody.tsx src/pages/CommunityPostDetailPage.tsx src/App.tsx)",
+      "Bash(git -C /Users/hans1/vibe commit -m ' *)",
+      "Bash(git -C /Users/hans1/vibe add CLAUDE.md src/components/ApplaudButton.tsx src/components/ProjectActionFooter.tsx src/pages/ProjectDetailPage.tsx)",
+      "Bash(git -C /Users/hans1/vibe add src/lib/auditionStreak.ts)",
+      "Bash(git -C /Users/hans1/vibe add src/lib/supabase.ts src/lib/mdDiscovery.ts src/components/DiscoveryPanel.tsx src/components/LibraryPackRow.tsx src/pages/LibraryPage.tsx src/pages/LibraryDetailPage.tsx supabase/migrations/20260425_library_v2_ui.sql)",
+      "Bash(git -C /Users/hans1/vibe add supabase/migrations/20260425_library_feed_view_refresh.sql)",
+      "Bash(git -C /Users/hans1/vibe add src/components/Hero.tsx src/components/Nav.tsx src/components/SubmitForm.tsx src/lib/season.ts src/pages/LandingPage.tsx src/pages/ProfilePage.tsx src/pages/ProjectsPage.tsx src/pages/RulebookPage.tsx src/pages/SubmitPage.tsx supabase/functions/analyze-project/index.ts supabase/migrations/20260425_activity_point_kind_backfill.sql)",
+      "Bash(brew --version)",
+      "Read(//Users/hans1/.supabase/**)",
+      "Bash(npx supabase *)",
+      "Bash(git mv *)",
+      "Bash(git -C /Users/hans1/vibe add src/lib/creatorName.ts src/components/CommunityPostCard.tsx src/components/FeaturedLaneCard.tsx src/components/LibraryPackRow.tsx src/components/ProjectCard.tsx src/components/ProjectCardEditorial.tsx src/components/ProjectPreviewModal.tsx src/pages/CommunityPostDetailPage.tsx src/pages/LibraryDetailPage.tsx src/pages/ProfilePage.tsx src/pages/ProjectDetailPage.tsx)",
+      "Bash(git -C /Users/hans1/vibe add src/App.tsx src/components/ForecastModal.tsx src/components/EmotionTagRow.tsx src/components/ThisWeekHighlight.tsx src/pages/LandingPage.tsx src/pages/LeaderboardPage.tsx src/pages/ProjectsPage.tsx)",
+      "Bash(git -C /Users/hans1/vibe add src/components/Nav.tsx)",
+      "Bash(git -C /Users/hans1/vibe add src/components/LibraryPackRow.tsx src/lib/creatorName.ts src/lib/supabase.ts src/pages/LibraryDetailPage.tsx src/pages/ScoutsPage.tsx supabase/migrations/20260425130000_display_name_privacy.sql)",
+      "Bash(git -C /Users/hans1/vibe add src/lib/auth.tsx src/lib/projectQueries.ts src/lib/supabase.ts src/pages/ProfilePage.tsx supabase/migrations/20260425140000_email_column_grants.sql)",
+      "Bash(git -C /Users/hans1/vibe add src/lib/projectQueries.ts src/components/EditProjectModal.tsx)"
     ]
   }
 }

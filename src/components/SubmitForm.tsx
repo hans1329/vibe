@@ -296,7 +296,7 @@ export function SubmitForm({ onComplete }: SubmitFormProps) {
           color: '#00D4AA',
           borderRadius: '2px',
         }}>
-          FREE APPLICATION · {eligibility.remainingFree} of {FREE_REGISTRATIONS_PER_MEMBER} remaining
+          FREE AUDITION · {eligibility.remainingFree} of {FREE_REGISTRATIONS_PER_MEMBER} remaining
         </div>
       )}
 

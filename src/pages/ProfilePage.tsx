@@ -424,7 +424,7 @@ function YourStackSection() {
             We match Library items to your stack so you see artifacts that plug into what you already use.
             {' '}
             <span style={{ color: 'var(--text-secondary)' }}>
-              Default is auto-derived from your submitted projects — override anytime.
+              Default is auto-derived from your auditioned projects — override anytime.
             </span>
           </p>
 
@@ -457,7 +457,7 @@ function YourStackSection() {
               color: 'var(--text-muted)',
               borderRadius: '2px',
             }}>
-              No stack detected yet. Add a chip below, or submit a project to let us infer it automatically.
+              No stack detected yet. Add a chip below, or audition a project to let us infer it automatically.
             </div>
           ) : (
             <div className="flex flex-wrap gap-1.5 mb-3">

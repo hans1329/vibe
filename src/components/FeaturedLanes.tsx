@@ -40,7 +40,7 @@ export function FeaturedLanes() {
   return (
     <div className="flex flex-col gap-6">
       <Lane
-        label="NEW APPLICATIONS"
+        label="NEW AUDITIONS"
         hint="Week 1 · blind stage · no scores yet"
         tone="#6B7280"
         loading={rookie.loading}

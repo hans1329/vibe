@@ -28,7 +28,13 @@
       "Bash(brew list *)",
       "Read(//opt/homebrew/opt/libpq/bin/**)",
       "Bash(ffmpeg -version)",
-      "Bash(grep -rn \"width: [0-9]\\\\{2,\\\\}, height: [0-9]\\\\{2,\\\\}\" /Users/hans1/vibe/src --include=\"*.tsx\" -B 1 -A 3)"
+      "Bash(grep -rn \"width: [0-9]\\\\{2,\\\\}, height: [0-9]\\\\{2,\\\\}\" /Users/hans1/vibe/src --include=\"*.tsx\" -B 1 -A 3)",
+      "Bash(git -C /Users/hans1/vibe commit --allow-empty -m ' *)",
+      "Bash(curl -sS --max-time 10 __TRACKED_VAR__/)",
+      "Bash(curl -sS --max-time 10 -o /dev/null -w \"HTTP %{http_code}\\\\n\" https://www.commit.show/)",
+      "Bash(git -C /Users/hans1/vibe add -A src/lib/community.ts src/components/CommunityLayout.tsx src/components/CommunityPostCard.tsx src/components/CommunityTagFilter.tsx src/pages/BuildLogsPage.tsx src/pages/StacksPage.tsx src/pages/AsksPage.tsx src/pages/OfficeHoursPage.tsx src/App.tsx src/components/Nav.tsx)",
+      "Bash(git -C /Users/hans1/vibe commit -m ' *)",
+      "Bash(git -C /Users/hans1/vibe add src/components/TagInput.tsx src/pages/NewCommunityPostPage.tsx src/pages/BuildLogsPage.tsx src/pages/StacksPage.tsx src/pages/AsksPage.tsx src/App.tsx)"
     ]
   }
 }
