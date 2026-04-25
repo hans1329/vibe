@@ -1,6 +1,37 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import type { HeroStats } from '../lib/heroStats'
+
+const HEADLINE_LINE_1 = 'Show your'
+const HEADLINE_LINE_2 = 'Commit'
+const TOTAL_HEADLINE_CHARS = HEADLINE_LINE_1.length + HEADLINE_LINE_2.length
+
+function useTypedHeadline() {
+  const [count, setCount] = useState(0)
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' &&
+        window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      setCount(TOTAL_HEADLINE_CHARS)
+      return
+    }
+    if (count >= TOTAL_HEADLINE_CHARS) return
+    // Initial pause lets the stagger-2 fadeUp finish · longer pause at the
+    // line break makes the carriage return feel deliberate · per-char ~95ms
+    // matches a realistic terminal-typing cadence.
+    const delay =
+      count === 0                          ? 650 :
+      count === HEADLINE_LINE_1.length     ? 380 :
+      95
+    const t = setTimeout(() => setCount(c => c + 1), delay)
+    return () => clearTimeout(t)
+  }, [count])
+
+  const line1 = HEADLINE_LINE_1.slice(0, Math.min(count, HEADLINE_LINE_1.length))
+  const line2 = HEADLINE_LINE_2.slice(0, Math.max(0, count - HEADLINE_LINE_1.length))
+  const onLine2 = count > HEADLINE_LINE_1.length
+  return { line1, line2, onLine2 }
+}
 
 interface HeroProps {
   stats: HeroStats
@@ -108,16 +139,9 @@ export function Hero({ stats }: HeroProps) {
         SEASON ZERO · NOW OPEN · CLASS OF 2026
       </div>
 
-      {/* Main headline */}
-      <h1
-        className="stagger-2 font-display font-black leading-none tracking-tight mb-6"
-        style={{ fontSize: 'clamp(3.5rem, 9vw, 8rem)', letterSpacing: '-1.5px' }}
-      >
-        <span style={{ color: 'var(--cream)' }}>Show your</span>
-        <br />
-        <em className="gold-shimmer not-italic">Commit</em>
-        <span className="terminal-cursor" aria-hidden="true" />
-      </h1>
+      {/* Main headline · typed-terminal effect */}
+      <TypedH1 />
+
 
       {/* Rule */}
       <div className="stagger-3 w-24 h-px mb-6" style={{ background: 'var(--gold-500)', opacity: 0.4 }} />
@@ -207,6 +231,7 @@ export function Hero({ stats }: HeroProps) {
 //   prefers-reduced-motion users keep the still poster.
 function HeroBackground() {
   const [showVideo, setShowVideo] = useState(false)
+  const videoRef = useRef<HTMLVideoElement | null>(null)
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -216,13 +241,28 @@ function HeroBackground() {
     const nav = (navigator as unknown as { connection?: { saveData?: boolean; effectiveType?: string; downlink?: number } }).connection
     if (nav?.saveData) return
     if (nav?.effectiveType && /(^|-)2g$/.test(nav.effectiveType)) return
-    if (typeof nav?.downlink === 'number' && nav.downlink < 1.5) return
+    // Loosened from 1.5 → 0.7 Mbps. Most 4g/wifi sits well above this; the
+    // earlier threshold was skipping the video on otherwise-fine connections,
+    // leaving the static poster frozen on the page.
+    if (typeof nav?.downlink === 'number' && nav.downlink < 0.7) return
 
     const arm = () => setShowVideo(true)
     const ric = (window as unknown as { requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number }).requestIdleCallback
     if (ric) ric(arm, { timeout: 2500 })
     else setTimeout(arm, 800)
   }, [])
+
+  // Belt-and-suspenders: the autoplay attribute alone fails on some
+  // mobile browsers (Low Power Mode iOS, some Chrome versions). Calling
+  // .play() explicitly once metadata is loaded covers those cases.
+  useEffect(() => {
+    if (!showVideo) return
+    const v = videoRef.current
+    if (!v) return
+    const tryPlay = () => v.play().catch(() => { /* user-policy block · poster stays */ })
+    if (v.readyState >= 2) tryPlay()
+    else v.addEventListener('loadeddata', tryPlay, { once: true })
+  }, [showVideo])
 
   return (
     <>
@@ -237,12 +277,13 @@ function HeroBackground() {
       />
       {showVideo && (
         <video
+          ref={videoRef}
           aria-hidden="true"
           autoPlay
           loop
           muted
           playsInline
-          preload="metadata"
+          preload="auto"
           poster="/hero-poster.webp"
           className="absolute inset-0 w-full h-full pointer-events-none select-none"
           style={{
@@ -258,5 +299,30 @@ function HeroBackground() {
         </video>
       )}
     </>
+  )
+}
+
+// ── Typed-terminal headline ───────────────────────────────────
+// Renders "Show your\nCommit" as if typed at a 95ms-per-char cadence,
+// with a longer pause at the line break for the carriage return.
+// Reduced-motion users get the full text instantly. The cursor sits at
+// the live caret, then settles after "Commit" finishes typing.
+function TypedH1() {
+  const { line1, line2, onLine2 } = useTypedHeadline()
+
+  return (
+    <h1
+      className="stagger-2 font-display font-black leading-none tracking-tight mb-6"
+      style={{ fontSize: 'clamp(3.5rem, 9vw, 8rem)', letterSpacing: '-1.5px' }}
+    >
+      <span style={{ color: 'var(--cream)' }}>{line1 || '​'}</span>
+      {!onLine2 && <span className="terminal-cursor" aria-hidden="true" />}
+      <br />
+      {/* Use ​ (zero-width space) to keep line height even before any
+          characters of "Commit" have been typed — prevents a layout shift
+          when the second line starts populating. */}
+      <em className="gold-shimmer not-italic">{line2 || '​'}</em>
+      {onLine2 && <span className="terminal-cursor" aria-hidden="true" />}
+    </h1>
   )
 }
