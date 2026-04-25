@@ -116,10 +116,17 @@ function truncate(s: string, n: number): string {
 /**
  * Realtime subscription · fires for every INSERT/UPDATE scoped to `recipientId`.
  * Caller re-fetches the feed on callback. Returns an unsubscribe fn.
+ *
+ * Channel name carries a per-instance random suffix so a hot-reload or
+ * StrictMode double-mount can't reuse a half-torn-down channel and trip
+ * Supabase's "cannot add postgres_changes callbacks after subscribe()" guard.
  */
 export function subscribeNotifications(recipientId: string, onChange: () => void): () => void {
+  const tag = (typeof crypto !== 'undefined' && 'randomUUID' in crypto)
+    ? crypto.randomUUID().slice(0, 8)
+    : Math.random().toString(36).slice(2, 10)
   const channel = supabase
-    .channel(`notifications:${recipientId}`)
+    .channel(`notifications:${recipientId}:${tag}`)
     .on(
       'postgres_changes',
       { event: '*', schema: 'public', table: 'notifications', filter: `recipient_id=eq.${recipientId}` },

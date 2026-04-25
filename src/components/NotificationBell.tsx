@@ -7,7 +7,7 @@
 //   · Clicking a row marks it read and navigates if we know the destination
 //   · "Mark all read" zeroes the badge without needing to visit each row
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { IconBell, IconApplaud, IconForecast } from './icons'
 import {
@@ -27,15 +27,25 @@ export function NotificationBell({ recipientId }: Props) {
   const [rows, setRows] = useState<NotificationRow[] | null>(null)
   const wrapRef = useRef<HTMLDivElement>(null)
 
-  // Initial count + realtime subscription.
-  useEffect(() => {
+  // Capture latest `open` for the subscribe callback without making the
+  // effect depend on it · re-running the effect would create a duplicate
+  // channel and Supabase rejects `.on()` on an already-subscribed channel.
+  const openRef = useRef(open)
+  useEffect(() => { openRef.current = open }, [open])
+
+  // Stable refresh helper — used by the subscription callback.
+  const refreshAll = useCallback(() => {
     fetchUnreadCount().then(setUnread)
-    const unsub = subscribeNotifications(recipientId, () => {
-      fetchUnreadCount().then(setUnread)
-      if (open) fetchNotifications(25).then(setRows)
-    })
+    if (openRef.current) fetchNotifications(25).then(setRows)
+  }, [])
+
+  // Initial count + realtime subscription · runs once per recipient.
+  useEffect(() => {
+    if (!recipientId) return
+    fetchUnreadCount().then(setUnread)
+    const unsub = subscribeNotifications(recipientId, refreshAll)
     return unsub
-  }, [recipientId, open])
+  }, [recipientId, refreshAll])
 
   // Load feed when panel opens.
   useEffect(() => {
