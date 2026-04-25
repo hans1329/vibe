@@ -294,9 +294,11 @@ function HeroBackground() {
           }}
         >
           {/* WebM first for Chrome/Firefox · MP4 for Safari/iOS.
-              v2 names because edge-cached v1 was the older 15 fps cut. */}
-          <source src="/hero-bg-v2.webm" type="video/webm" />
-          <source src="/hero-bg-v2.mp4"  type="video/mp4"  />
+              v2 names because edge-cached v1 was the older 15 fps cut.
+              ?b=… cache-busts an SPA-fallback HTML response that CF
+              edge cached during the v2 propagation window. */}
+          <source src="/hero-bg-v2.webm?b=30fps" type="video/webm" />
+          <source src="/hero-bg-v2.mp4?b=30fps"  type="video/mp4"  />
         </video>
       )}
     </>
