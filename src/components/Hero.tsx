@@ -293,9 +293,10 @@ function HeroBackground() {
             animation: 'fadeIn 600ms ease-out',
           }}
         >
-          {/* WebM first for Chrome/Firefox · MP4 for Safari/iOS */}
-          <source src="/hero-bg.webm" type="video/webm" />
-          <source src="/hero-bg.mp4"  type="video/mp4"  />
+          {/* WebM first for Chrome/Firefox · MP4 for Safari/iOS.
+              v2 names because edge-cached v1 was the older 15 fps cut. */}
+          <source src="/hero-bg-v2.webm" type="video/webm" />
+          <source src="/hero-bg-v2.mp4"  type="video/mp4"  />
         </video>
       )}
     </>
