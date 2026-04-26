@@ -34,6 +34,34 @@ function scoreBar(value: number, max: number): string {
   return tone('▰'.repeat(filled)) + c.muted('▱'.repeat(empty))
 }
 
+// 5-row × 5-col ASCII digit set · used for the hero score.
+// Hand-rolled (no external font dep) so the bundle stays tiny.
+const BIG_DIGITS: Record<string, string[]> = {
+  '0': ['█▀▀▀█', '█   █', '█   █', '█   █', '█▄▄▄█'],
+  '1': ['  ▄█ ', '   █ ', '   █ ', '   █ ', '  ▄█▄'],
+  '2': ['█▀▀▀█', '    █', '█▀▀▀▀', '█    ', '█▄▄▄▄'],
+  '3': ['█▀▀▀█', '    █', ' ▀▀▀█', '    █', '█▄▄▄█'],
+  '4': ['█   █', '█   █', '█▄▄▄█', '    █', '    █'],
+  '5': ['█▀▀▀▀', '█    ', '▀▀▀▀█', '    █', '█▄▄▄█'],
+  '6': ['█▀▀▀▀', '█    ', '█▀▀▀█', '█   █', '█▄▄▄█'],
+  '7': ['█▀▀▀█', '    █', '   ▄▀', '  ▄▀ ', ' ▄▀  '],
+  '8': ['█▀▀▀█', '█   █', '█▀▀▀█', '█   █', '█▄▄▄█'],
+  '9': ['█▀▀▀█', '█   █', '█▄▄▄█', '    █', '█▄▄▄█'],
+  '/': ['    █', '   ▄▀', '  ▄▀ ', ' ▄▀  ', '█    '],
+  ' ': ['     ', '     ', '     ', '     ', '     '],
+}
+
+/** Render a string ("68", "100", "82/100") as 5 rows of big ASCII. */
+function bigText(text: string): string[] {
+  const rows = ['', '', '', '', '']
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i]
+    const glyph = BIG_DIGITS[ch] ?? BIG_DIGITS[' ']
+    for (let r = 0; r < 5; r++) rows[r] += glyph[r] + (i < text.length - 1 ? ' ' : '')
+  }
+  return rows
+}
+
 function pad(s: string, w: number): string {
   return s.length >= w ? s.slice(0, w) : s + ' '.repeat(w - s.length)
 }
@@ -81,13 +109,20 @@ export function renderAudit(view: AuditView): string {
   lines.push('  ' + c.bold(c.cream(name)) + '   ' + c.muted(slug))
   lines.push('')
 
-  // Hero score card
-  const scoreText = `${total} / 100`
-  const scoreTinted = scoreTone(total)(scoreText)
-  const cardW = 14
-  lines.push('  ' + ' '.repeat(20) + c.muted('╔' + '═'.repeat(cardW) + '╗'))
-  lines.push('  ' + ' '.repeat(20) + c.muted('║') + centerPadAnsi(scoreTinted, cardW) + c.muted('║'))
-  lines.push('  ' + ' '.repeat(20) + c.muted('╚' + '═'.repeat(cardW) + '╝'))
+  // Hero score · big-digit ASCII for X-share screenshots.
+  // Renders the score number 5 rows tall, color-coded by tier band.
+  // Width budget: 3-digit (e.g. "100") = 17 cols → centered in 58.
+  const tone     = scoreTone(total)
+  const bigRows  = bigText(String(total))
+  const bigWidth = bigRows[0].length
+  const leftPad  = Math.floor((58 - bigWidth) / 2)
+  for (const row of bigRows) {
+    lines.push('  ' + ' '.repeat(leftPad) + tone(row))
+  }
+  // Caption beneath the big number — small "/ 100 · band"
+  const band   = total >= 75 ? 'strong' : total >= 50 ? 'mid' : 'weak'
+  const caption = `/ 100 · ${band}`
+  lines.push('  ' + ' '.repeat(Math.floor((58 - caption.length) / 2)) + c.muted(caption))
   lines.push('')
 
   // 3-axis bars
