@@ -110,19 +110,22 @@ export function renderAudit(view: AuditView): string {
   lines.push('')
 
   // Hero score · big-digit ASCII for X-share screenshots.
-  // Renders the score number 5 rows tall, color-coded by tier band.
-  // Width budget: 3-digit (e.g. "100") = 17 cols → centered in 58.
-  const tone     = scoreTone(total)
+  // Always brand gold (slightly deeper tone for screenshot legibility) so
+  // the wordmark + score read as one cohesive brand mark. Band info is
+  // surfaced in the small caption underneath instead of via color.
   const bigRows  = bigText(String(total))
   const bigWidth = bigRows[0].length
   const leftPad  = Math.floor((58 - bigWidth) / 2)
   for (const row of bigRows) {
-    lines.push('  ' + ' '.repeat(leftPad) + tone(row))
+    lines.push('  ' + ' '.repeat(leftPad) + c.goldDeep(row))
   }
-  // Caption beneath the big number — small "/ 100 · band"
-  const band   = total >= 75 ? 'strong' : total >= 50 ? 'mid' : 'weak'
-  const caption = `/ 100 · ${band}`
-  lines.push('  ' + ' '.repeat(Math.floor((58 - caption.length) / 2)) + c.muted(caption))
+  // Caption · small "/ 100 · band" · band tinted so the signal lives there.
+  const band     = total >= 75 ? 'strong' : total >= 50 ? 'mid' : 'weak'
+  const bandTone = scoreTone(total)
+  const caption  = `/ 100 · ${band}`
+  // Center the caption (visible chars only — color codes don't take width).
+  const capPad   = Math.floor((58 - caption.length) / 2)
+  lines.push('  ' + ' '.repeat(capPad) + c.muted('/ 100 · ') + bandTone(band))
   lines.push('')
 
   // 3-axis bars
