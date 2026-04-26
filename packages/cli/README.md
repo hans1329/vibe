@@ -1,12 +1,15 @@
-# commitshow
+# commit.show CLI
 
 > Audit any vibe-coded project from your terminal.
 
-`commitshow` pulls the latest [commit.show](https://commit.show) audit report for
-a project and renders it inline — Audit / Scout / Community scores, 3 strengths
-+ 2 concerns, current season rank, delta since the last snapshot. Local runs
-also save a `.commitshow/audit.md` file so your AI coding agent can read the
-report in the next turn and iterate.
+The official CLI for **[commit.show](https://commit.show)** — pulls the latest
+audit report for a project and renders it inline. Score breakdown
+(Audit / Scout / Community), 3 strengths + 2 concerns, current season rank,
+delta since the last snapshot. Local runs also save a `.commitshow/audit.md`
+file so your AI coding agent can read the report in the next turn and iterate.
+
+The npm package + command is `commitshow` (no dot — npm doesn't allow it in
+package names). Everything else uses the brand `commit.show`.
 
 ```bash
 npx commitshow audit

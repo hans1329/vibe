@@ -9,10 +9,10 @@ import { c } from './lib/colors.js'
 const VERSION = '0.1.0'
 
 const USAGE = `
-${c.bold(c.gold('commitshow'))} ${c.dim(`v${VERSION}`)}  ${c.muted('—')} ${c.cream('audit any vibe-coded project from your terminal.')}
+${c.bold(c.gold('commit.show'))} ${c.dim(`v${VERSION}`)}  ${c.muted('—')} ${c.cream('audit any vibe-coded project from your terminal.')}
 
 ${c.muted('USAGE')}
-  ${c.cream('commitshow')} ${c.gold('<command>')} [target] [flags]
+  ${c.cream('commitshow')} ${c.gold('<command>')} [target] [flags]   ${c.dim('# CLI is `commitshow` (no dot — npm constraint)')}
 
 ${c.muted('COMMANDS')}
   ${c.gold('audit')}    [target]    run audit and render the report
