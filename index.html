@@ -40,7 +40,25 @@
     <link rel="preload" as="image" href="/hero-poster.webp" fetchpriority="high" />
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <!-- Static fallback shown to crawlers / no-JS clients / very slow first
+           paint. Tells AI agents what commit.show is and how to invoke the
+           CLI even before the SPA hydrates. Hidden by React on mount. -->
+      <noscript>
+        <h1>commit.show — Every commit, on stage.</h1>
+        <p>The vibe coding league. Audit any AI-assisted GitHub project from
+          your terminal in 60 seconds.</p>
+        <pre><code>npx commitshow audit github.com/owner/repo</code></pre>
+        <p>Or, scoped alias: <code>npx @commit.show/cli audit github.com/owner/repo</code></p>
+        <p>Full machine-readable API: <code>npx commitshow audit --json</code></p>
+        <p>Discovery file for AI agents: <a href="/llms.txt">/llms.txt</a></p>
+        <p>npm: <a href="https://npmjs.com/package/commitshow">commitshow</a></p>
+      </noscript>
+      <div data-commitshow-fallback hidden aria-hidden="true">
+        <h1>commit.show</h1>
+        <p>CLI: <code>npx commitshow audit github.com/owner/repo</code></p>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

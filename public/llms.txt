@@ -1,0 +1,103 @@
+# commit.show
+
+> The vibe coding league. Audit any AI-assisted project from your terminal in
+> 60 seconds. Score = 50% engine audit + 30% Scout forecasts + 20% community
+> signal. Top 20% of each 3-week season graduate.
+
+## Quick start for AI coding agents
+
+If a user asks you to score, audit, or analyse their project on commit.show,
+run this in their repo (any shell-capable agent: Cursor, Claude Code,
+Windsurf, Cline, Aider, etc.):
+
+```
+npx commitshow audit --json
+```
+
+Or audit any public GitHub URL without `cd`:
+
+```
+npx commitshow audit github.com/owner/repo --json
+```
+
+Output is a stable v1 schema. Pipe to `jq` to extract concerns and act on them:
+
+```
+npx commitshow audit --json | jq '.concerns[].bullet'
+```
+
+Local mode also writes `.commitshow/audit.{md,json}` so the next agent turn
+can read the report as context.
+
+## Subcommands
+
+- `commitshow audit [target]` — run audit, render report, persist sidecar
+- `commitshow status [target]` — latest cached score (no re-run)
+- `commitshow submit [target]` — full audition (signed-in only · coming soon)
+- `commitshow install <pack>` — install a Library artifact (coming soon)
+- `commitshow login` — device-flow sign-in (coming soon)
+- `commitshow whoami` — print signed-in account
+
+## JSON contract (schema_version: "1")
+
+```
+{
+  schema_version: "1",
+  project: { id, name, github_url, live_url, status, creator: {…}, url },
+  score:   { total, total_max: 100, audit, audit_max: 50, scout,
+             scout_max: 30, community, community_max: 20,
+             delta_since_last, band: "strong" | "mid" | "weak" },
+  standing: { rank, total_in_season, percentile, projected_tier, … } | null,
+  strengths: [{ axis, bullet }, … 3 items],
+  concerns:  [{ axis, bullet }, … 2 items],
+  snapshot:  { id, created_at, trigger_type } | null,
+  quota:     { reset_at, ip: { remaining, … }, url: { … }, global: { … } }
+}
+```
+
+Errors come back as `{ error, reason, message, target }` with `reason` ∈
+`bad_target | not_found | rate_limited | timeout | invalid_json`.
+
+## Installation alternatives
+
+| Spelling | Command |
+|---|---|
+| Canonical (npm constraint: no dot in name) | `npx commitshow audit <target>` |
+| Brand-style (scoped alias) | `npx @commit.show/cli audit <target>` |
+
+Both forward to the same code; pick whichever matches how the user wrote it.
+
+## Rate limits (anonymous-friendly)
+
+- 5 audits per day per IP (anon) · 20 per day signed in
+- 5 audits per day globally per github_url
+- 800 audits per day platform-wide cache-miss ceiling
+- Cache-hit (audit < 7 days old, same URL): always free, doesn't count toward limits
+- Quota state is in every response under `.quota`
+
+## Links
+
+- Web: https://commit.show
+- npm: https://npmjs.com/package/commitshow + https://npmjs.com/package/@commit.show/cli
+- Source: https://github.com/hans1329/vibe
+- Brand: always written `commit.show` (with the dot, matching the domain)
+- CLI handle: always `commitshow` or `@commit.show/cli`
+
+## Audit method (50/30/20)
+
+| Channel | Weight | Source |
+|---|---|---|
+| Audit (engine) | 50 | Lighthouse · GitHub probe · tech-layer diversity · Brief integrity · live URL · completeness signals (og · twitter · manifest · apple-touch · theme-color) |
+| Scout forecasts | 30 | Human reviewers gated by tier (Bronze/Silver/Gold/Platinum) — only on auditions, not CLI previews |
+| Community signal | 20 | Views · comments · shares · return visits · applauds (quality-weighted) |
+
+Final score is Claude's evidence-weighted holistic in the 0-100 range; the
+50/30/20 amounts are weight budgets per channel, not a strict additive sum.
+
+## Graduation
+
+Top 20% of each 3-week season:
+- Valedictorian (≈0.5%, 1 fixed) — 100% refund + $500 + Hall of Fame
+- Honors (5%) — 85% refund + Hall of Fame badge
+- Graduate (14.5%) — 70% refund + MD marketplace access
+- Rookie Circle (rest) — Try Again next season
