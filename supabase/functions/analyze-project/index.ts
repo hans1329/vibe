@@ -387,6 +387,113 @@ async function liveHealth(url: string) {
   }
 }
 
+// ── Polish & sharing signals ──────────────────────────────────
+// Things Lighthouse doesn't grade but separate finished products from
+// half-shipped prototypes: OG image / Twitter card (social shares),
+// manifest + apple-touch-icon (mobile install), theme-color, favicon,
+// canonical. We fetch the HTML once and regex the head — no heavy DOM
+// dependency for an Edge runtime.
+
+interface CompletenessSignals {
+  fetched:           boolean
+  has_og_image:      boolean
+  has_og_title:      boolean
+  has_og_description: boolean
+  has_twitter_card:  boolean
+  has_apple_touch:   boolean
+  has_manifest:      boolean
+  has_theme_color:   boolean
+  has_favicon:       boolean
+  has_canonical:     boolean
+  has_meta_desc:     boolean
+  score:             number     // 0-5 derived for Claude evidence
+  filled:            number     // raw count of present signals · 0-10
+  of:                number     // total checks · 10
+}
+
+async function inspectCompleteness(url: string): Promise<CompletenessSignals> {
+  const blank: CompletenessSignals = {
+    fetched: false,
+    has_og_image: false, has_og_title: false, has_og_description: false,
+    has_twitter_card: false, has_apple_touch: false, has_manifest: false,
+    has_theme_color: false, has_favicon: false, has_canonical: false,
+    has_meta_desc: false,
+    score: 0, filled: 0, of: 10,
+  }
+  if (!url) return blank
+  try {
+    const ctrl = new AbortController()
+    const timer = setTimeout(() => ctrl.abort(), 5000)
+    const res = await fetch(url, {
+      method: 'GET', signal: ctrl.signal, redirect: 'follow',
+      headers: { 'User-Agent': 'commit.show-completeness-probe/1' },
+    })
+    clearTimeout(timer)
+    if (!res.ok) return blank
+
+    // Read at most 64 KB — head is always near the top, no need for the body.
+    const reader = res.body?.getReader()
+    let text = ''
+    if (reader) {
+      const dec = new TextDecoder()
+      let total = 0
+      while (total < 65_536) {
+        const { value, done } = await reader.read()
+        if (done) break
+        text += dec.decode(value, { stream: true })
+        total += value.byteLength
+        if (text.includes('</head>')) break
+      }
+      try { reader.cancel() } catch { /* ignore */ }
+    } else {
+      text = await res.text()
+    }
+
+    const head = text.split(/<\/head>/i)[0] ?? text
+    const has = (re: RegExp) => re.test(head)
+
+    const signals: CompletenessSignals = {
+      fetched: true,
+      has_og_image:       has(/<meta\s+[^>]*(?:property|name)\s*=\s*["']og:image["']/i),
+      has_og_title:       has(/<meta\s+[^>]*(?:property|name)\s*=\s*["']og:title["']/i),
+      has_og_description: has(/<meta\s+[^>]*(?:property|name)\s*=\s*["']og:description["']/i),
+      has_twitter_card:   has(/<meta\s+[^>]*name\s*=\s*["']twitter:card["']/i),
+      has_apple_touch:    has(/<link\s+[^>]*rel\s*=\s*["'][^"']*apple-touch-icon[^"']*["']/i),
+      has_manifest:       has(/<link\s+[^>]*rel\s*=\s*["']manifest["']/i),
+      has_theme_color:    has(/<meta\s+[^>]*name\s*=\s*["']theme-color["']/i),
+      has_favicon:        has(/<link\s+[^>]*rel\s*=\s*["'](?:shortcut\s+)?icon["']/i),
+      has_canonical:      has(/<link\s+[^>]*rel\s*=\s*["']canonical["']/i),
+      has_meta_desc:      has(/<meta\s+[^>]*name\s*=\s*["']description["']/i),
+      score: 0, filled: 0, of: 10,
+    }
+
+    // Weighted score · the social-share signals carry more weight because they
+    // multiply the audience of every external mention of the product.
+    const weighted =
+      (signals.has_og_image       ? 1.5 : 0) +
+      (signals.has_twitter_card   ? 1.0 : 0) +
+      (signals.has_apple_touch    ? 0.75 : 0) +
+      (signals.has_manifest       ? 0.75 : 0) +
+      (signals.has_theme_color    ? 0.25 : 0) +
+      (signals.has_favicon        ? 0.25 : 0) +
+      (signals.has_og_title       ? 0.2 : 0) +
+      (signals.has_og_description ? 0.2 : 0) +
+      (signals.has_canonical      ? 0.05 : 0) +
+      (signals.has_meta_desc      ? 0.05 : 0)
+
+    signals.score  = Math.min(5, Math.round(weighted * 10) / 10)
+    signals.filled =
+      Number(signals.has_og_image) + Number(signals.has_og_title) +
+      Number(signals.has_og_description) + Number(signals.has_twitter_card) +
+      Number(signals.has_apple_touch) + Number(signals.has_manifest) +
+      Number(signals.has_theme_color) + Number(signals.has_favicon) +
+      Number(signals.has_canonical) + Number(signals.has_meta_desc)
+    return signals
+  } catch {
+    return blank
+  }
+}
+
 // ── Scoring (PRD v1.2 §5.2) ───────────────────────────────────
 function scoreLighthouse(lh: LighthouseScores) {
   // -1 "not assessed" → neutral midpoint (no bonus, no penalty).
@@ -630,6 +737,8 @@ OUTPUT RULES
        · Thin GitHub (<50 commits or <3 months active): -3
        · No tests in repo: -3
        · No observability / telemetry: -2
+       · Polish gap (completeness_signals.score < 1.5 AND live_url is web): -3
+         "no og:image, no manifest, no apple-touch — looks half-shipped"
   3) Apply ADDITIVE evidence bonuses — each concrete, independently verifiable bullet
      is worth ~+3 to +5. No bundled "infrastructure depth" lift. Examples of +3/+5:
        · Real smart contract deployed on mainnet (with explorer link): +5
@@ -638,6 +747,8 @@ OUTPUT RULES
        · Migration cadence 50+ over 3 months with meaningful schema shifts: +3
        · Third-party integration that works end-to-end (Stripe · OAuth · etc.): +3
        · Multi-platform surface (web + mobile binary, not just responsive): +3
+       · Polish full house (completeness_signals.score >= 4.0): +3
+         "shipped: og:image + twitter:card + manifest + apple-touch — production polish"
      Cap total positive bonuses at +25 from baseline unless there is truly
      exceptional evidence (rare — document explicitly in delta_reasoning).
   4) Resulting score.current must be REPRODUCIBLE from the evidence list above.
@@ -1104,10 +1215,18 @@ Deno.serve(async (req) => {
     .from('build_briefs').select('*').eq('project_id', projectId).maybeSingle()
 
   // Parallel external probes
-  const [lh, gh, health] = await Promise.all([
+  const [lh, gh, health, completeness] = await Promise.all([
     project.live_url ? runLighthouse(project.live_url) : Promise.resolve({ performance: 0, accessibility: 0, bestPractices: 0, seo: 0 }),
     project.github_url ? inspectGitHub(project.github_url) : Promise.resolve({ accessible: false, languages: {}, language_pct: {}, stars: 0, forks: 0, file_count_estimate: 0, last_commit_at: null }),
     project.live_url ? liveHealth(project.live_url) : Promise.resolve({ status: 0, ok: false, elapsed_ms: 0 }),
+    project.live_url ? inspectCompleteness(project.live_url) : Promise.resolve({
+      fetched: false,
+      has_og_image: false, has_og_title: false, has_og_description: false,
+      has_twitter_card: false, has_apple_touch: false, has_manifest: false,
+      has_theme_color: false, has_favicon: false, has_canonical: false,
+      has_meta_desc: false,
+      score: 0, filled: 0, of: 10,
+    }),
   ])
 
   // Score components
@@ -1172,6 +1291,7 @@ Deno.serve(async (req) => {
     },
     lighthouse: lh,
     live_url_health: health,
+    completeness_signals: completeness,
     github: gh,
     scoring_so_far: {
       auto_50_breakdown: {
@@ -1183,6 +1303,10 @@ Deno.serve(async (req) => {
         health_pts: healthPts,
         total: score_auto,
       },
+      // Polish & sharing signals · NOT in auto_50, but Claude weighs them
+      // into score.current. Captures what Lighthouse SEO misses: og:image,
+      // twitter:card, manifest, apple-touch-icon, theme-color, etc.
+      polish_signals_0_to_5: completeness.score,
     },
     trigger_type: triggerType,
   }, { includeExpertPanel })
@@ -1229,7 +1353,9 @@ Deno.serve(async (req) => {
     axis_scores:        currentAxisMap,
     lighthouse:         lh,
     github_signals:     gh.signals,
-    rich_analysis:      claude,
+    // Mix in the completeness signals so the snapshot is self-contained:
+    // future reruns / UI ledgers can reference exactly what was checked.
+    rich_analysis:      { ...claude, completeness_signals: completeness },
     parent_snapshot_id: parent?.id ?? null,
     delta_from_parent:  Object.keys(deltaFromParent).length ? deltaFromParent : null,
     score_total_delta:  scoreTotalDelta,
