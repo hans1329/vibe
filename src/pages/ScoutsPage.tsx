@@ -91,8 +91,8 @@ export function ScoutsPage() {
   }, [rows])
 
   return (
-    <section className="relative z-10 pt-20 pb-16 px-4 md:px-6 min-h-screen">
-      <div className="max-w-5xl mx-auto">
+    <section className="relative z-10 pt-20 pb-16 px-4 md:px-6 lg:px-8 min-h-screen">
+      <div className="max-w-7xl mx-auto">
         <header className="mb-6">
           <div className="font-mono text-xs tracking-widest mb-2" style={{ color: 'var(--gold-500)' }}>
             // SCOUT LEADERBOARD

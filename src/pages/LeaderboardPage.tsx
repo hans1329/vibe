@@ -63,8 +63,8 @@ export function LeaderboardPage() {
   )
 
   return (
-    <section className="relative z-10 pt-20 pb-16 px-6 min-h-screen">
-      <div className="max-w-5xl mx-auto">
+    <section className="relative z-10 pt-20 pb-16 px-4 md:px-6 lg:px-8 min-h-screen">
+      <div className="max-w-7xl mx-auto">
         {/* ── Header ── */}
         <header className="mb-6">
           <button
