@@ -58,7 +58,7 @@ export type Season = {
 export const PUBLIC_MEMBER_COLUMNS =
   'id, display_name, avatar_url, tier, activity_points, monthly_votes_used, ' +
   'votes_reset_at, creator_grade, total_graduated, avg_auto_score, ' +
-  'preferred_stack, created_at, updated_at, grade_recalc_at'
+  'preferred_stack, created_at, updated_at, grade_recalc_at, is_admin'
 
 export const PUBLIC_PROJECT_COLUMNS =
   'id, created_at, github_url, live_url, description, lh_performance, ' +
@@ -83,6 +83,7 @@ export type Member = {
   preferred_stack: string[] | null        // v1.5 · null = use member_stack_auto
   created_at: string
   updated_at: string
+  is_admin?: boolean                      // 20260427150000 · /admin gate
 }
 
 // v1.5 · member_stack_auto view · auto-inferred from projects.tech_layers

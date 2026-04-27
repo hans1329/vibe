@@ -18,6 +18,7 @@ const LibraryDetailPage       = lazy(() => import('./pages/LibraryDetailPage').t
 const ScoutsPage              = lazy(() => import('./pages/ScoutsPage').then(m => ({ default: m.ScoutsPage })))
 const RulebookPage            = lazy(() => import('./pages/RulebookPage').then(m => ({ default: m.RulebookPage })))
 const BackstagePage           = lazy(() => import('./pages/BackstagePage').then(m => ({ default: m.BackstagePage })))
+const AdminPage               = lazy(() => import('./pages/AdminPage').then(m => ({ default: m.AdminPage })))
 const BuildLogsPage           = lazy(() => import('./pages/BuildLogsPage').then(m => ({ default: m.BuildLogsPage })))
 const StacksPage              = lazy(() => import('./pages/StacksPage').then(m => ({ default: m.StacksPage })))
 const AsksPage                = lazy(() => import('./pages/AsksPage').then(m => ({ default: m.AsksPage })))
@@ -56,6 +57,7 @@ export default function App() {
           <Route path="/leaderboard"      element={<LeaderboardPage />} />
           <Route path="/rulebook"         element={<RulebookPage />} />
           <Route path="/backstage"        element={<BackstagePage />} />
+          <Route path="/admin"            element={<AdminPage />} />
 
           {/* Creator Community (§13-B) */}
           <Route path="/community"                     element={<Navigate to="/community/build-logs" replace />} />

@@ -123,6 +123,16 @@ function isAuthed(req: Request): boolean {
   return !!auth && auth !== `Bearer ${anon}` && auth !== 'Bearer '
 }
 
+// Admin bypass · headers-based. When the request includes an
+// `x-admin-token` header that matches the server-side ADMIN_TOKEN secret,
+// rate limits (IP / URL / global) are skipped entirely. Used by the
+// /admin page to debug pipelines + force audits without hitting caps.
+function isAdmin(req: Request): boolean {
+  const token  = req.headers.get('x-admin-token') ?? ''
+  const secret = Deno.env.get('ADMIN_TOKEN') ?? ''
+  return !!secret && token === secret
+}
+
 // Single bump+read against preview_rate_limits via the existing RPC.
 // Returns { count, limit, ok } so callers can decide what to do.
 async function bumpAndCheck(
@@ -324,9 +334,21 @@ Deno.serve(async (req) => {
     }
   }
 
-  // Rate limit · IP always counted, URL+global only on cache miss (force=true
-  // bypasses the cache check above, so we count it as a real Claude spend).
-  const rl = await enforceRateLimit(admin, req, canon.slug, /*willCostClaude*/ !isCacheHit)
+  // Admin bypass · skips ALL rate limits + still surfaces a quota snapshot
+  // (with admin: true marker) so the response shape stays consistent.
+  const isAdminReq = isAdmin(req)
+  const today = new Date().toISOString().slice(0, 10)
+  const rl: RateLimitDecision | RateLimitDeny = isAdminReq
+    ? {
+        ok: true,
+        quota: {
+          reset_at: nextResetIso(),
+          ip:     { count: 0, limit: 9999, remaining: 9999, tier: 'authed' as const, admin: true } as RateQuota['ip'] & { admin: true },
+          url:    { count: 0, limit: 9999, remaining: 9999 },
+          global: { count: 0, limit: 9999, remaining: 9999 },
+        } as RateQuota,
+      }
+    : await enforceRateLimit(admin, req, canon.slug, /*willCostClaude*/ !isCacheHit)
   if (!rl.ok) return json({
     error:   'rate_limited',
     reason:  rl.reason,

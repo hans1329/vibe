@@ -1320,7 +1320,7 @@ OUTPUT RULES
        Activity  +0-2: recent commit · momentum
 
      Hard penalty (deterministic, applied before cap):
-       env_committed: -5 — committed `.env` file (security violation, no
+       env_committed: -5 — committed \`.env\` file (security violation, no
          polish offsets it). Surface in delta_reasoning even though the
          deduction is already in score_auto.
      Soft bonus (NOT in 50, stacks on top, capped +5):
@@ -1931,6 +1931,11 @@ Deno.serve(async (req) => {
     }
   }
 
+  // Defensive top-level try/catch · v4 had silent failures (no new
+  // snapshots written) with no obvious cause. Wrap the rest of the
+  // handler so any uncaught error gets logged AND surfaces as an
+  // analysis_snapshot row with rich_analysis.error so we can debug.
+  try {
   // Load project + brief
   const { data: project, error: projErr } = await admin
     .from('projects')
@@ -2231,4 +2236,31 @@ Deno.serve(async (req) => {
     claude_error: (claude as any).error ?? null,
     health,
   })
+  } catch (e) {
+    // v4 silent-failure debug · capture the error to a snapshot so we can
+    // see WHERE in the pipeline it crashed without dashboard log access.
+    const msg = (e as Error)?.message ?? String(e)
+    const stack = (e as Error)?.stack ?? ''
+    console.error('[analyze-project FATAL]', msg, stack)
+    try {
+      await admin.from('analysis_snapshots').insert([{
+        project_id:    projectId,
+        trigger_type:  triggerType,
+        triggered_by:  triggeredBy,
+        score_auto:    0,
+        score_forecast: 0, score_community: 0, score_total: 0,
+        rich_analysis: {
+          error: {
+            type:    'pipeline_crash',
+            message: msg,
+            stack:   stack.split('\n').slice(0, 8).join('\n'),
+          },
+        },
+        model_version: 'claude-sonnet-4-6',
+      }])
+    } catch (saveErr) {
+      console.error('[analyze-project FATAL · save error]', saveErr)
+    }
+    return json({ error: 'analyze_failed', message: msg }, 500)
+  }
 })
