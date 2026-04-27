@@ -18,6 +18,7 @@ const LibraryDetailPage       = lazy(() => import('./pages/LibraryDetailPage').t
 const ScoutsPage              = lazy(() => import('./pages/ScoutsPage').then(m => ({ default: m.ScoutsPage })))
 const RulebookPage            = lazy(() => import('./pages/RulebookPage').then(m => ({ default: m.RulebookPage })))
 const BackstagePage           = lazy(() => import('./pages/BackstagePage').then(m => ({ default: m.BackstagePage })))
+const AuditPage               = lazy(() => import('./pages/AuditPage').then(m => ({ default: m.AuditPage })))
 const AdminPage               = lazy(() => import('./pages/AdminPage').then(m => ({ default: m.AdminPage })))
 const BuildLogsPage           = lazy(() => import('./pages/BuildLogsPage').then(m => ({ default: m.BuildLogsPage })))
 const StacksPage              = lazy(() => import('./pages/StacksPage').then(m => ({ default: m.StacksPage })))
@@ -57,6 +58,7 @@ export default function App() {
           <Route path="/leaderboard"      element={<LeaderboardPage />} />
           <Route path="/rulebook"         element={<RulebookPage />} />
           <Route path="/backstage"        element={<BackstagePage />} />
+          <Route path="/audit"            element={<AuditPage />} />
           <Route path="/admin"            element={<AdminPage />} />
 
           {/* Creator Community (§13-B) */}
@@ -87,6 +89,8 @@ export default function App() {
           <a href="/scouts"    style={{ color: 'inherit', textDecoration: 'none' }}>Scouts</a>
           <span style={{ color: 'rgba(255,255,255,0.15)' }}>·</span>
           <a href="/backstage" style={{ color: 'inherit', textDecoration: 'none' }}>Backstage</a>
+          <span style={{ color: 'rgba(255,255,255,0.15)' }}>·</span>
+          <a href="/audit"     style={{ color: 'inherit', textDecoration: 'none' }}>Audit</a>
           <span style={{ color: 'rgba(255,255,255,0.15)' }}>·</span>
           <a href="/rulebook"  style={{ color: 'inherit', textDecoration: 'none' }}>Rulebook</a>
         </div>
