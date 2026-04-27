@@ -222,19 +222,22 @@ function Table({ rows }: { rows: Array<[string, string, string] | [string, strin
       {rows.map((r, i) => (
         <div
           key={i}
-          className={`grid items-start gap-3 px-4 py-2.5 ${r.length === 3 ? 'grid-cols-[100px_150px_1fr] md:grid-cols-[110px_180px_1fr]' : 'grid-cols-[130px_1fr]'}`}
+          className={`grid items-start gap-3 px-4 py-2.5 ${r.length === 3 ? 'grid-cols-[88px_minmax(0,1fr)] sm:grid-cols-[100px_150px_minmax(0,1fr)] md:grid-cols-[110px_180px_minmax(0,1fr)]' : 'grid-cols-[110px_minmax(0,1fr)] sm:grid-cols-[130px_minmax(0,1fr)]'}`}
           style={{
             background: i % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'transparent',
             borderBottom: i < rows.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none',
           }}
         >
-          <div className="font-mono text-[10px] tracking-widest uppercase pt-0.5" style={{ color: 'var(--gold-500)' }}>
+          <div className="font-mono text-[10px] tracking-widest uppercase pt-0.5 min-w-0" style={{ color: 'var(--gold-500)' }}>
             {r[0]}
           </div>
           {r.length === 3 && (
-            <div className="font-mono text-xs" style={{ color: 'var(--cream)' }}>{r[1]}</div>
+            <div className="hidden sm:block font-mono text-xs min-w-0 break-words" style={{ color: 'var(--cream)' }}>{r[1]}</div>
           )}
-          <div className="font-light text-xs" style={{ color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+          <div className="font-light text-xs min-w-0 break-words" style={{ color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+            {r.length === 3 && (
+              <span className="sm:hidden font-mono block mb-0.5" style={{ color: 'var(--cream)' }}>{r[1]}</span>
+            )}
             {r.length === 3 ? r[2] : r[1]}
           </div>
         </div>
