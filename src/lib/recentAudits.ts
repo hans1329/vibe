@@ -31,6 +31,7 @@ export interface AuditDemo {
 }
 
 interface RawSnapshot {
+  project_id:     string
   score_total:    number
   score_auto:     number
   rich_analysis:  {
@@ -85,17 +86,23 @@ export async function fetchRecentAuditDemos(): Promise<AuditDemo[]> {
   const { data, error } = await supabase
     .from('analysis_snapshots')
     .select(`
-      score_total, score_auto, rich_analysis,
+      project_id, score_total, score_auto, rich_analysis,
       projects!inner(project_name, github_url, status)
     `)
     .gte('score_total', 70)
     .gte('created_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString())
     .order('created_at', { ascending: false })
-    .limit(15)
+    .limit(50)                                              // bumped · we dedupe below
   if (error || !data) return []
 
+  // Dedupe by project_id keeping the FIRST encountered (= latest snapshot
+  // per project, since query is ordered created_at DESC). Without this,
+  // a project audited 5 times in a row showed up 5 times in the rotation
+  // with each snapshot's score (e.g. supabase cycling 76/84/76/80/82).
+  const seenProjects = new Set<string>()
   const demos: AuditDemo[] = []
   for (const raw of data as unknown as RawSnapshot[]) {
+    if (seenProjects.has(raw.project_id)) continue
     const proj = raw.projects
     if (!proj || proj.status !== 'preview')              continue
     if (!proj.project_name || proj.project_name.length > 24) continue
@@ -110,6 +117,7 @@ export async function fetchRecentAuditDemos(): Promise<AuditDemo[]> {
       .map(asBullet).filter((s): s is string => !!s).slice(0, 2).map(s => shortenBullet(s))
     if (strengths.length < 2 || concerns.length < 1) continue   // not demo-worthy
 
+    seenProjects.add(raw.project_id)
     demos.push({
       projectName: proj.project_name,
       slug,
@@ -119,7 +127,7 @@ export async function fetchRecentAuditDemos(): Promise<AuditDemo[]> {
       strengths,
       concerns,
     })
-    if (demos.length >= 8) break
+    if (demos.length >= 6) break
   }
 
   memoCache = { ts: Date.now(), demos }

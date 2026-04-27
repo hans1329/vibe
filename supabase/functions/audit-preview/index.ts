@@ -53,7 +53,7 @@ function json(body: unknown, status = 200) {
 
 const CACHE_TTL_MS         = 7 * 24 * 60 * 60 * 1000   // 7 days per-URL cache
 const RATE_ANON_PER_IP     = 5                          // anon IP cap
-const RATE_AUTHED_PER_IP   = 20                         // authed IP cap
+const RATE_AUTHED_PER_IP   = 50                         // authed IP cap · early-launch generous (revisit when real traffic ramps)
 const RATE_PER_URL_GLOBAL  = 5                          // per github_url cap (any IP)
 const RATE_GLOBAL_DAILY    = 800                        // platform-wide cache-miss cap
 
