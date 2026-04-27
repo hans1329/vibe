@@ -6,7 +6,7 @@ import {
 } from '../lib/api.js'
 import {
   renderAudit, renderMarkdown, renderJson, renderUpsell,
-  renderQuotaFooter, renderRateLimitDeny,
+  renderQuotaFooter, renderRateLimitDeny, renderAuditError,
   writeAuditMarkdown, writeAuditJson,
 } from '../lib/render.js'
 import { c } from '../lib/colors.js'
@@ -38,6 +38,35 @@ export async function audit(args: string[]): Promise<number> {
       fetchStanding(project.id),
     ])
     const view = { project, snapshot, standing }
+
+    // The snapshot may carry an audit-engine error (Claude quota exceeded,
+    // rate limit, etc.). Render the friendly explanation panel and exit
+    // 2 so CI scripts can detect "engine unavailable" without conflating
+    // it with a genuine low score.
+    const auditErr = snapshot?.rich_analysis?.error
+    if (auditErr) {
+      if (asJson) {
+        process.stdout.write(JSON.stringify({
+          error:        'audit_engine_error',
+          reason:       auditErr.type,
+          message:      auditErr.message ?? null,
+          retry_after:  auditErr.retry_after_seconds ?? null,
+          project:      { id: project.id, name: project.project_name, github_url: project.github_url },
+        }) + '\n')
+      } else {
+        console.error('')
+        console.error(renderAuditError(
+          { type: auditErr.type, message: auditErr.message ?? undefined,
+            retry_after_seconds: auditErr.retry_after_seconds ?? null,
+            http_status: auditErr.http_status },
+          project.project_name,
+          `https://commit.show/projects/${project.id}`,
+        ))
+        console.error('')
+      }
+      return 2
+    }
+
     if (asJson) {
       process.stdout.write(renderJson(view) + '\n')
     } else {
@@ -115,6 +144,35 @@ export async function audit(args: string[]): Promise<number> {
   }
 
   const view = { project: envelope.project, snapshot: envelope.snapshot, standing: null }
+
+  // Same audit-engine error check as the cached path. The polled snapshot
+  // can carry a Claude failure even though the audit-preview Edge Function
+  // returned 202 (the failure happened in the background analyze-project).
+  const polledErr = envelope.snapshot?.rich_analysis?.error
+  if (polledErr) {
+    if (asJson) {
+      process.stdout.write(JSON.stringify({
+        error:        'audit_engine_error',
+        reason:       polledErr.type,
+        message:      polledErr.message ?? null,
+        retry_after:  polledErr.retry_after_seconds ?? null,
+        project:      { id: envelope.project.id, name: envelope.project.project_name, github_url: envelope.project.github_url },
+        quota:        envelope.quota,
+      }) + '\n')
+    } else {
+      console.error('')
+      console.error(renderAuditError(
+        { type: polledErr.type, message: polledErr.message ?? undefined,
+          retry_after_seconds: polledErr.retry_after_seconds ?? null,
+          http_status: polledErr.http_status },
+        envelope.project.project_name,
+        `https://commit.show/projects/${envelope.project.id}`,
+      ))
+      console.error('')
+    }
+    return 2
+  }
+
   if (asJson) {
     // Inject quota into the v1 schema as an additive field — schema_version
     // unchanged because additive-only fields don't bump it.

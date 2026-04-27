@@ -59,6 +59,27 @@ export interface ProjectRow {
 }
 
 export interface ScoutBriefItem { axis?: string; bullet?: string }
+
+// Server-side error envelope set on rich_analysis when the Claude call
+// itself failed (vs the project just having a low score). CLI uses this
+// to render a friendly explanation instead of empty findings.
+export type AuditErrorType =
+  | 'anthropic_quota_exceeded'
+  | 'anthropic_rate_limited'
+  | 'anthropic_overloaded'
+  | 'anthropic_auth_error'
+  | 'anthropic_other'
+  | 'claude_returned_no_data'
+  | 'network_error'
+
+export interface AuditErrorEnvelope {
+  type:                 AuditErrorType | string
+  message?:             string
+  http_status?:         number
+  anthropic_error_type?: string | null
+  retry_after_seconds?: number | null
+}
+
 export interface SnapshotRow {
   id:                   string
   project_id:           string
@@ -76,6 +97,7 @@ export interface SnapshotRow {
     }
     tldr?: string
     headline?: string
+    error?: AuditErrorEnvelope          // NEW · set when Claude call failed
   } | null
 }
 

@@ -373,6 +373,85 @@ export function renderJson(view: AuditView): string {
   return JSON.stringify(toAgentShape(view), null, 2)
 }
 
+// ── Audit-engine error panel ────────────────────────────────────────
+// Rendered when the snapshot exists but rich_analysis.error is set —
+// i.e., the Claude call itself failed (quota, rate limit, network). The
+// project's auto-50 signals may still be valid; we explain that and tell
+// the user when fresh audits will resume.
+
+const AUDIT_ERROR_LABEL: Record<string, string> = {
+  anthropic_quota_exceeded: 'Daily audit budget reached',
+  anthropic_rate_limited:   'Audit engine rate-limited',
+  anthropic_overloaded:     'Audit engine overloaded',
+  anthropic_auth_error:     'Audit engine auth issue',
+  anthropic_other:          'Audit engine error',
+  claude_returned_no_data:  'Audit engine returned no data',
+  network_error:            'Audit engine network error',
+}
+
+const AUDIT_ERROR_DETAIL: Record<string, string> = {
+  anthropic_quota_exceeded:
+    "commit.show paused fresh audits until the daily budget refills. " +
+    "Cached audits (any repo audited in the last 7 days) still work normally.",
+  anthropic_rate_limited:
+    "Too many fresh audits in a short window. Wait a minute and retry. " +
+    "Cached results stay available.",
+  anthropic_overloaded:
+    "The audit engine is briefly overloaded. Retry in a minute or two.",
+  anthropic_auth_error:
+    "commit.show's API key needs attention. Cached results still work.",
+  anthropic_other:
+    "Something on the audit engine side blocked this run. Try again later.",
+  claude_returned_no_data:
+    "The audit engine ran but returned an empty response. Try again.",
+  network_error:
+    "The audit engine couldn't be reached. Check your connection or retry.",
+}
+
+export interface AuditErrorInput {
+  type:                 string
+  message?:             string
+  retry_after_seconds?: number | null
+  http_status?:         number
+}
+
+function untilHuman(seconds: number): string {
+  if (seconds < 60)    return `${seconds}s`
+  if (seconds < 3600)  return `${Math.round(seconds / 60)}m`
+  if (seconds < 86400) return `${Math.round(seconds / 3600)}h`
+  return `${Math.round(seconds / 86400)}d`
+}
+
+export function renderAuditError(err: AuditErrorInput, projectName?: string, projectUrl?: string): string {
+  const label  = AUDIT_ERROR_LABEL[err.type]  ?? AUDIT_ERROR_LABEL.anthropic_other
+  const detail = AUDIT_ERROR_DETAIL[err.type] ?? AUDIT_ERROR_DETAIL.anthropic_other
+  const lines: string[] = []
+  const horiz = '─'.repeat(58)
+  lines.push('  ' + c.muted('┌' + horiz + '┐'))
+  lines.push('  ' + c.muted('│ ') + c.bold(c.gold('commit.show')) + c.muted(' · ') + c.scarlet(label) + ' '.repeat(Math.max(0, 58 - 14 - label.length)) + c.muted('│'))
+  lines.push('  ' + c.muted('│' + ' '.repeat(58) + '│'))
+  if (projectName) {
+    lines.push('  ' + c.muted('│ ') + c.cream(`Repo: ${projectName}`) + ' '.repeat(Math.max(0, 56 - 6 - projectName.length)) + c.muted('│'))
+    lines.push('  ' + c.muted('│' + ' '.repeat(58) + '│'))
+  }
+  for (const w of wrapText(detail, 54)) {
+    lines.push('  ' + c.muted('│ ') + c.cream(w) + ' '.repeat(Math.max(0, 56 - w.length)) + c.muted('│'))
+  }
+  if (err.retry_after_seconds && err.retry_after_seconds > 0) {
+    lines.push('  ' + c.muted('│' + ' '.repeat(58) + '│'))
+    const t = `Retry after ~${untilHuman(err.retry_after_seconds)}`
+    lines.push('  ' + c.muted('│ ') + c.dim(t) + ' '.repeat(Math.max(0, 56 - t.length)) + c.muted('│'))
+  }
+  lines.push('  ' + c.muted('│' + ' '.repeat(58) + '│'))
+  const statusLine = `Status check: commitshow status ${projectName ?? '<repo>'}`
+  lines.push('  ' + c.muted('│ ') + c.dim(statusLine) + ' '.repeat(Math.max(0, 56 - statusLine.length)) + c.muted('│'))
+  if (projectUrl) {
+    lines.push('  ' + c.muted('│ ') + c.dim('Web view: ') + c.cream(projectUrl.length > 44 ? projectUrl.slice(0, 41) + '…' : projectUrl) + ' '.repeat(Math.max(0, 46 - Math.min(44, projectUrl.length))) + c.muted('│'))
+  }
+  lines.push('  ' + c.muted('└' + horiz + '┘'))
+  return lines.join('\n')
+}
+
 // ── Upsell panel (CLI-only · appended to preview audits) ─────────────
 // Shown after a preview audit render so Creator sees what a real audition
 // unlocks. Intentionally NOT shown for registered projects — they already

@@ -155,7 +155,9 @@ export function Hero({ stats }: HeroProps) {
         the work, Scouts forecast the finish, and the ones ready for production graduate.
       </p>
 
-      {/* CTA */}
+      {/* CTA · matched widths so the pair reads as a balanced unit. The
+          longer label ("Audition your product →") sets the floor; the
+          shorter one stretches to match via min-width. */}
       <div className="stagger-4 flex gap-4 justify-center flex-wrap mb-16">
         <button
           onClick={onSubmitClick}
@@ -168,6 +170,7 @@ export function Hero({ stats }: HeroProps) {
             cursor: 'pointer',
             fontFamily: 'DM Mono, monospace',
             boxShadow: '0 0 40px rgba(240,192,64,0.2)',
+            minWidth: '240px',
           }}
           onMouseEnter={e => { e.currentTarget.style.background = 'var(--gold-400)'; e.currentTarget.style.boxShadow = '0 0 60px rgba(240,192,64,0.35)'; }}
           onMouseLeave={e => { e.currentTarget.style.background = 'var(--gold-500)'; e.currentTarget.style.boxShadow = '0 0 40px rgba(240,192,64,0.2)'; }}
@@ -184,6 +187,7 @@ export function Hero({ stats }: HeroProps) {
             borderRadius: '2px',
             cursor: 'pointer',
             fontFamily: 'DM Mono, monospace',
+            minWidth: '240px',
           }}
           onMouseEnter={e => (e.currentTarget.style.borderColor = 'rgba(240,192,64,0.5)')}
           onMouseLeave={e => (e.currentTarget.style.borderColor = 'rgba(248,245,238,0.2)')}

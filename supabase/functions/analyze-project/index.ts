@@ -997,19 +997,61 @@ OUTPUT SHAPE
       }),
     })
     if (!res.ok) {
-      const err = await res.text()
-      console.error('Claude error', res.status, err)
-      return { ...RICH_ANALYSIS_FALLBACK, error: `http ${res.status}: ${err.slice(0, 240)}` }
+      const errText = await res.text()
+      console.error('Claude error', res.status, errText)
+      // Map Anthropic-specific error types so the CLI / web can show a
+      // friendly message instead of generic "http 429". The shapes come
+      // straight from Anthropic's own error envelope:
+      //   { type: 'error', error: { type: 'rate_limit_error' | 'billing_error'
+      //                              | 'overloaded_error' | 'permission_error'
+      //                              | 'invalid_request_error', message } }
+      let parsedType: string | null = null
+      let parsedMsg:  string = errText.slice(0, 240)
+      try {
+        const j = JSON.parse(errText)
+        parsedType = j?.error?.type ?? null
+        parsedMsg  = j?.error?.message ?? parsedMsg
+      } catch { /* keep raw text */ }
+
+      const errorClass =
+        parsedType === 'billing_error'      ? 'anthropic_quota_exceeded' :
+        parsedType === 'rate_limit_error'   ? 'anthropic_rate_limited'   :
+        parsedType === 'overloaded_error'   ? 'anthropic_overloaded'     :
+        parsedType === 'permission_error'   ? 'anthropic_auth_error'     :
+        res.status === 429                  ? 'anthropic_rate_limited'   :
+        res.status === 529                  ? 'anthropic_overloaded'     :
+        res.status === 400 && /(quota|credit|balance|monthly\s*limit)/i.test(parsedMsg)
+                                            ? 'anthropic_quota_exceeded' :
+        'anthropic_other'
+
+      const retryAfter = Number(res.headers.get('retry-after') || 0) || null
+
+      return {
+        ...RICH_ANALYSIS_FALLBACK,
+        error: {
+          type:                errorClass,
+          http_status:         res.status,
+          anthropic_error_type: parsedType,
+          message:             parsedMsg,
+          retry_after_seconds: retryAfter,
+        },
+      } as RichAnalysis
     }
     const data = await res.json()
     const block = (data.content || []).find((b: any) => b.type === 'tool_use')
     if (!block?.input) {
-      return { ...RICH_ANALYSIS_FALLBACK, error: 'Claude returned no tool_use block' }
+      return {
+        ...RICH_ANALYSIS_FALLBACK,
+        error: { type: 'claude_returned_no_data', message: 'Claude returned no tool_use block' },
+      } as RichAnalysis
     }
     return { ...RICH_ANALYSIS_FALLBACK, ...block.input } as RichAnalysis
   } catch (e) {
     console.error('Claude fetch failed', e)
-    return { ...RICH_ANALYSIS_FALLBACK, error: String(e).slice(0, 240) }
+    return {
+      ...RICH_ANALYSIS_FALLBACK,
+      error: { type: 'network_error', message: String(e).slice(0, 240) },
+    } as RichAnalysis
   }
 }
 
