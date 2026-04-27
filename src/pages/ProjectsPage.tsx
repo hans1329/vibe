@@ -31,8 +31,8 @@ export function ProjectsPage() {
   }, [])
 
   return (
-    <section className="relative z-10 pt-16 pb-12 px-4 md:px-6 min-h-screen">
-      <div className="max-w-[1600px] mx-auto">
+    <section className="relative z-10 pt-16 pb-12 px-4 md:px-6 lg:px-8 min-h-screen">
+      <div className="max-w-7xl mx-auto">
         {/* ── Compact top strip · Season · stats · Apply ── */}
         <div className="flex items-center justify-between gap-3 flex-wrap py-3 mb-4" style={{
           borderBottom: '1px solid rgba(240,192,64,0.12)',
