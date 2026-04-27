@@ -33,8 +33,8 @@ export function CommunityLayout({ children }: Props) {
   }, [])
 
   return (
-    <section className="relative z-10 pt-20 pb-16 px-4 md:px-6 min-h-screen">
-      <div className="max-w-5xl mx-auto">
+    <section className="relative z-10 pt-20 pb-16 px-4 md:px-6 lg:px-8 min-h-screen">
+      <div className="max-w-7xl mx-auto">
         {/* Title strip */}
         <header className="mb-6">
           <div className="font-mono text-xs tracking-widest mb-2" style={{ color: 'var(--gold-500)' }}>
@@ -51,7 +51,7 @@ export function CommunityLayout({ children }: Props) {
 
         {/* Sticky tab strip */}
         <div
-          className="sticky z-20 mb-8 -mx-4 md:-mx-6 px-4 md:px-6 py-2.5"
+          className="sticky z-20 mb-8 -mx-4 md:-mx-6 lg:-mx-8 px-4 md:px-6 lg:px-8 py-2.5"
           style={{
             top: '64px',
             background: 'rgba(6,12,26,0.85)',
@@ -59,7 +59,7 @@ export function CommunityLayout({ children }: Props) {
             borderBottom: '1px solid rgba(255,255,255,0.06)',
           }}
         >
-          <div className="max-w-5xl mx-auto flex items-center gap-1 overflow-x-auto">
+          <div className="max-w-7xl mx-auto flex items-center gap-1 overflow-x-auto">
             {TABS.map(t => (
               <NavLink
                 key={t.to}

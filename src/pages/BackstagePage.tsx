@@ -11,7 +11,7 @@ import { Link } from 'react-router-dom'
 
 export function BackstagePage() {
   return (
-    <section className="relative z-10 pt-20 pb-20 px-6 min-h-screen">
+    <section className="relative z-10 pt-20 pb-20 px-4 md:px-6 min-h-screen">
       <div className="max-w-3xl mx-auto">
         <header className="mb-12">
           <div className="font-mono text-xs tracking-widest mb-2" style={{ color: 'var(--gold-500)' }}>

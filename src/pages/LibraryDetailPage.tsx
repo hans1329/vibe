@@ -142,7 +142,7 @@ export function LibraryDetailPage() {
   }
 
   return (
-    <section className="relative z-10 pt-20 pb-16 px-6 min-h-screen">
+    <section className="relative z-10 pt-20 pb-16 px-4 md:px-6 lg:px-8 min-h-screen">
       <div className="max-w-4xl mx-auto">
         {/* Back link */}
         <button

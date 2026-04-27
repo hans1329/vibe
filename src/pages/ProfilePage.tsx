@@ -105,7 +105,7 @@ export function ProfilePage() {
   }
 
   return (
-    <section className="relative z-10 pt-20 pb-16 px-4 sm:px-6 min-h-screen">
+    <section className="relative z-10 pt-20 pb-16 px-4 md:px-6 lg:px-8 min-h-screen">
       <div className="max-w-5xl mx-auto">
         {/* ── Header ── */}
         <header className="card-navy p-4 sm:p-6 mb-6" style={{ borderRadius: '2px' }}>
