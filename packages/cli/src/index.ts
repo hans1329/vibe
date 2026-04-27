@@ -6,7 +6,7 @@ import { login }   from './commands/login.js'
 import { whoami }  from './commands/whoami.js'
 import { c } from './lib/colors.js'
 
-const VERSION = '0.1.9'
+const VERSION = '0.2.0'
 
 const USAGE = `
 ${c.bold(c.gold('commit.show'))} ${c.dim(`v${VERSION}`)}  ${c.muted('—')} ${c.cream('audit any vibe-coded project from your terminal.')}

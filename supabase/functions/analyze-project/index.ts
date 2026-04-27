@@ -150,6 +150,13 @@ interface GitHubInfo {
     has_overflow_x_hidden:     boolean   // body { overflow-x: hidden } in any .css
     has_prefers_dark:          boolean   // @media (prefers-color-scheme: dark) anywhere
     has_prefers_reduced_motion: boolean  // @media (prefers-reduced-motion) anywhere
+    // ── Tier-1 completeness checks (NEW · v4) ──
+    env_committed:        boolean        // .env / .env.production etc in repo (security violation)
+    releases_count:       number         // GitHub Releases tags published
+    readme_depth_score:   number         // 0-2 derived from line count + key sections
+    readme_line_count:    number         // raw line count of README
+    has_readme_install:   boolean        // README has "Installation" / "Install" section
+    has_readme_usage:     boolean        // README has "Usage" / "Getting Started" / "Quick Start"
   }
   readme_excerpt: string | null          // first ~2KB for Claude context
   debut_brief: {
@@ -270,6 +277,12 @@ async function inspectGitHub(url: string): Promise<GitHubInfo> {
       has_overflow_x_hidden: false,
       has_prefers_dark: false,
       has_prefers_reduced_motion: false,
+      env_committed: false,
+      releases_count: 0,
+      readme_depth_score: 0,
+      readme_line_count: 0,
+      has_readme_install: false,
+      has_readme_usage: false,
     },
     readme_excerpt: null,
     debut_brief: { found: false, path: null, raw: null, last_commit_at: null, sha: null },
@@ -528,14 +541,32 @@ async function inspectGitHub(url: string): Promise<GitHubInfo> {
     tailwind_class_total += totalTokens
   }
 
-  // Ecosystem signals · contributors count + npm weekly downloads. Both
-  // are extra fetches; we run them in parallel so they don't dominate
-  // total inspection time. Both fail gracefully (return 0/null).
-  const [contributorsResp, weeklyDownloads] = await Promise.all([
+  // Ecosystem signals · contributors + npm downloads + release count.
+  // All three are extra fetches; we run them in parallel so they don't
+  // dominate total inspection time. All fail gracefully (return 0/null).
+  const [contributorsResp, weeklyDownloads, releasesResp] = await Promise.all([
     gh('/contributors?per_page=100&anon=1'),
     fetchNpmWeeklyDownloads(pkgName),
+    gh('/releases?per_page=30'),
   ])
   const contributors_count = Array.isArray(contributorsResp) ? contributorsResp.length : 0
+  const releases_count     = Array.isArray(releasesResp) ? releasesResp.length : 0
+
+  // ── Security violation · committed .env file ──
+  // Excludes .env.example / .env.template / .env.sample (those are docs).
+  const env_committed = paths.some(p => /(^|\/)\.env(\.[a-z0-9]+)?$/i.test(p) &&
+    !/(\.env\.(example|sample|template|local\.example|defaults)|\.env\.tpl)$/i.test(p))
+
+  // ── README depth analysis ── (uses readmeRaw already fetched above)
+  const readmeFull = readmeRaw ?? ''
+  const readme_line_count = readmeFull.split('\n').length
+  // Match common section headers (markdown # / ## / ### + keywords).
+  const has_readme_install = /(^|\n)#{1,3}\s*(install|installation|setup|getting started|quick start)/i.test(readmeFull)
+  const has_readme_usage   = /(^|\n)#{1,3}\s*(usage|usage example|examples?|how to use|api)/i.test(readmeFull)
+  // Depth score 0-2: 1 for substantial length (≥80 lines), +1 for both key sections.
+  const readme_depth_score =
+    (readme_line_count >= 80 ? 1 : 0) +
+    (has_readme_install && has_readme_usage ? 1 : 0)
 
   // ── commit.show Build Brief: canonical file search + fuzzy fallback ──
   // Priority: exact paths → fuzzy patterns. Legacy `.debut/` paths still
@@ -657,10 +688,111 @@ async function inspectGitHub(url: string): Promise<GitHubInfo> {
       has_overflow_x_hidden,
       has_prefers_dark,
       has_prefers_reduced_motion,
+      env_committed,
+      releases_count,
+      readme_depth_score,
+      readme_line_count,
+      has_readme_install,
+      has_readme_usage,
     },
     readme_excerpt,
     debut_brief,
   }
+}
+
+// ── Security headers probe (Tier-1 completeness · v4) ───────
+// Single GET to the live URL · check the response headers for the most
+// impactful security headers. Returns presence flags + a 0-1 score so
+// downstream scoring stays simple.
+interface SecurityHeaders {
+  fetched:                boolean
+  has_csp:                boolean   // Content-Security-Policy
+  has_hsts:               boolean   // Strict-Transport-Security
+  has_frame_protection:   boolean   // X-Frame-Options OR frame-ancestors in CSP
+  has_content_type_opt:   boolean   // X-Content-Type-Options: nosniff
+  has_referrer_policy:    boolean   // Referrer-Policy
+  has_permissions_policy: boolean   // Permissions-Policy
+  filled:                 number    // 0-6
+  of:                     number    // 6
+}
+async function inspectSecurityHeaders(url: string): Promise<SecurityHeaders> {
+  const blank: SecurityHeaders = {
+    fetched: false,
+    has_csp: false, has_hsts: false, has_frame_protection: false,
+    has_content_type_opt: false, has_referrer_policy: false, has_permissions_policy: false,
+    filled: 0, of: 6,
+  }
+  try {
+    const ctrl = new AbortController()
+    const timer = setTimeout(() => ctrl.abort(), 5000)
+    const res = await fetch(url, { method: 'GET', signal: ctrl.signal, redirect: 'follow' })
+    clearTimeout(timer)
+    if (!res.ok) return blank
+    const h = res.headers
+    const csp     = (h.get('content-security-policy') || '').toLowerCase()
+    const hsts    = h.get('strict-transport-security') !== null
+    const frameH  = h.get('x-frame-options') !== null || /frame-ancestors/.test(csp)
+    const ctOpt   = (h.get('x-content-type-options') || '').toLowerCase().includes('nosniff')
+    const refPol  = h.get('referrer-policy') !== null
+    const permPol = h.get('permissions-policy') !== null
+    const flags = {
+      has_csp: csp.length > 0,
+      has_hsts: hsts,
+      has_frame_protection: frameH,
+      has_content_type_opt: ctOpt,
+      has_referrer_policy: refPol,
+      has_permissions_policy: permPol,
+    }
+    const filled = Object.values(flags).filter(Boolean).length
+    return { fetched: true, ...flags, filled, of: 6 }
+  } catch {
+    return blank
+  }
+}
+
+// ── Legal pages probe (Tier-1 completeness · v4) ────────────
+// Try common variants for /privacy and /terms. Returns presence flags
+// based on any variant returning 200 + reasonable body length (>500
+// bytes — excludes tiny redirect pages).
+interface LegalPages {
+  fetched:      boolean
+  has_privacy:  boolean
+  has_terms:    boolean
+}
+async function inspectLegalPages(baseUrl: string): Promise<LegalPages> {
+  const blank: LegalPages = { fetched: false, has_privacy: false, has_terms: false }
+  if (!baseUrl) return blank
+
+  let base: string
+  try {
+    base = new URL(baseUrl).origin
+  } catch {
+    return blank
+  }
+
+  const variants = {
+    privacy: ['/privacy', '/privacy-policy', '/legal/privacy'],
+    terms:   ['/terms', '/terms-of-service', '/tos', '/legal/terms'],
+  }
+  async function probeVariant(path: string): Promise<boolean> {
+    try {
+      const ctrl = new AbortController()
+      const timer = setTimeout(() => ctrl.abort(), 4000)
+      const res = await fetch(`${base}${path}`, { method: 'GET', signal: ctrl.signal, redirect: 'follow' })
+      clearTimeout(timer)
+      if (!res.ok) return false
+      const text = await res.text()
+      // Loose heuristic — substantial body avoids matching SPA fallback.
+      return text.length > 500
+    } catch {
+      return false
+    }
+  }
+  const [privacyHits, termsHits] = await Promise.all([
+    Promise.all(variants.privacy.map(probeVariant)).then(arr => arr.some(Boolean)),
+    Promise.all(variants.terms.map(probeVariant)).then(arr => arr.some(Boolean)),
+  ])
+  return { fetched: true, has_privacy: privacyHits, has_terms: termsHits }
 }
 
 // ── Live URL health ───────────────────────────────────────────
@@ -865,10 +997,23 @@ function scoreProductionMaturity(
   return { pts, breakdown: { tests, ci, observability, ts_strict, lockfile, license, responsive } }
 }
 
-// Source Hygiene · max 5 pts. GitHub accessible (3) + monorepo discipline
-// or clear src/ layout (1) + governance docs (1).
-function scoreSourceHygiene(gh: GitHubInfo): { pts: number; breakdown: { github: number; structure: number; governance: number } } {
-  const github = gh.accessible ? 3 : 0
+// Source Hygiene · max 7 pts (was 5 before Tier-1 completeness).
+// GitHub accessible (2) + monorepo discipline (1) + governance docs (1)
+// + security headers (1) + legal pages (1) + README depth (1).
+function scoreSourceHygiene(
+  gh: GitHubInfo,
+  security: { filled: number; of: number },
+  legal:    { has_privacy: boolean; has_terms: boolean },
+): {
+  pts: number
+  breakdown: {
+    github: number; structure: number; governance: number
+    security: number; legal: number; readme: number
+  }
+} {
+  // GitHub accessible · base presence signal (2pt — was 3, slightly reduced
+  // to make room for Tier-1 completeness sub-slots).
+  const github = gh.accessible ? 2 : 0
   const structure = gh.signals.is_monorepo ? 1 : 0
   // Governance: ANY two of (CONTRIBUTING, CHANGELOG, CODE_OF_CONDUCT) → 1 pt
   const governanceCount = [
@@ -877,7 +1022,20 @@ function scoreSourceHygiene(gh: GitHubInfo): { pts: number; breakdown: { github:
     gh.signals.has_code_of_conduct,
   ].filter(Boolean).length
   const governance = governanceCount >= 2 ? 1 : 0
-  return { pts: Math.min(5, github + structure + governance), breakdown: { github, structure, governance } }
+  // Security headers · 3+ of 6 → +1 (CSP / HSTS / X-Frame / X-Content-Type /
+  // Referrer-Policy / Permissions-Policy). Threshold low so passing is
+  // achievable without enterprise-grade CSP — just baseline hygiene.
+  const securityPts = security.filled >= 3 ? 1 : 0
+  // Legal · BOTH privacy AND terms reachable on the live URL (or at least one
+  // for non-SaaS form factors — keep simple: at least one earns the point).
+  const legalPts = (legal.has_privacy || legal.has_terms) ? 1 : 0
+  // README depth · 0-2 from inspectGitHub → cap at 1 here (the second pt
+  // is naturally absorbed since governance + readme rarely both 0/2).
+  const readmePts = gh.signals.readme_depth_score >= 1 ? 1 : 0
+  return {
+    pts: Math.min(7, github + structure + governance + securityPts + legalPts + readmePts),
+    breakdown: { github, structure, governance, security: securityPts, legal: legalPts, readme: readmePts },
+  }
 }
 
 // Completeness slot · max 2 pts (renormalized from 0-5 score).
@@ -888,17 +1046,20 @@ function scoreCompleteness(c: { score: number }): number {
 
 // Ecosystem signal — soft bonus capped +3, library reach signal.
 // Stars are log-scale: each 10× lifts +1 (cap at 10K+ stars = +3).
+// Releases (semver tags published) added in v4 — counts toward same cap.
 function scoreEcosystem(gh: GitHubInfo): {
   pts: number
-  breakdown: { stars: number; contributors: number; downloads: number }
+  breakdown: { stars: number; contributors: number; downloads: number; releases: number }
 } {
   const stars = gh.stars >= 10000 ? 2 : gh.stars >= 1000 ? 2 : gh.stars >= 100 ? 1 : 0
   const contributors = gh.contributors_count >= 50 ? 1 : 0
   const dl = gh.npm.weekly_downloads ?? 0
   // Library only: weekly downloads 1K+ +1, 100K+ already implied by stars
   const downloads = dl >= 1000 ? 1 : 0
-  const pts = Math.min(3, stars + contributors + downloads)
-  return { pts, breakdown: { stars, contributors, downloads } }
+  // Releases · 5+ semver tags = release discipline = +1
+  const releases = gh.signals.releases_count >= 5 ? 1 : 0
+  const pts = Math.min(3, stars + contributors + downloads + releases)
+  return { pts, breakdown: { stars, contributors, downloads, releases } }
 }
 
 // Activity recency — soft bonus capped +2.
@@ -1132,26 +1293,34 @@ OUTPUT RULES
 
   SCORE FORMATION — anti-anchoring discipline (critical, v2 · 2026-04-27):
   1) START from auto_baseline = scoring_so_far.auto_50_breakdown.total * 2.
-     The 52-pt pillar redistribution explicitly rewards production maturity
-     AND mobile responsiveness:
+     The 54-pt pillar redistribution rewards production maturity, mobile
+     responsiveness, AND Tier-1 completeness (security · legal · README):
         Lighthouse (mobile)  20  (Performance 8 · A11y 5 · BP 4 · SEO 3)
         Production Maturity  12  tests 3 · CI 2 · observability 2 · TS strict 1
-                                 · lockfile 1 · LICENSE 1 · responsive 2 (NEW)
-        Source Hygiene        5  (github accessible · monorepo · governance docs)
+                                 · lockfile 1 · LICENSE 1 · responsive 2
+        Source Hygiene        7  github 2 · monorepo 1 · governance docs 1
+                                 · security headers 1 · legal pages 1 · README depth 1
         Live URL Health       5
-        Completeness          2  (renormalized from polish 0-5)
+        Completeness          2
         Tech Diversity        3
-        Brief Integrity       5  (0 for walk-on · ceiling effectively 47)
+        Brief Integrity       5  (0 for walk-on · ceiling effectively 49)
         ─────────────────────
-        Total cap            52
-     Walk-on track normalizes against /47 (52 minus the 5 brief slot
-     that's structurally inaccessible). Responsive slot details:
-       +1 if Tailwind responsive prefix density (sm/md/lg/xl/2xl) ≥10%
-          of class tokens OR ≥5 CSS @media queries
-       +1 if mobile Lighthouse perf ≥70 OR mobile/desktop perf gap <15
-     The intent: a desktop-pretty product that horizontally scrolls on
-     mobile gets a clear penalty here. Vibe coders shipping with Cursor
-     defaults frequently miss this.
+        Total cap            54
+     Walk-on track normalizes against /49 (54 minus the 5 brief slot).
+
+     New v4 sub-slots:
+       Source Hygiene · security headers (+1):  3+ of 6 — CSP, HSTS,
+         X-Frame, X-Content-Type, Referrer-Policy, Permissions-Policy.
+       Source Hygiene · legal pages (+1): /privacy or /terms reachable.
+       Source Hygiene · README depth (+1): ≥80 lines + Install + Usage.
+     Soft bonuses (capped +5):
+       Ecosystem +0-3: stars · contributors · npm dl · releases (NEW)
+       Activity  +0-2: recent commit · momentum
+
+     Hard penalty (deterministic, applied before cap):
+       env_committed: -5 — committed `.env` file (security violation, no
+         polish offsets it). Surface in delta_reasoning even though the
+         deduction is already in score_auto.
      Soft bonus (NOT in 50, stacks on top, capped +5):
         Ecosystem            +0-3  (stars / contributors / npm weekly downloads)
         Activity             +0-2  (recent commit / momentum)
@@ -1182,7 +1351,15 @@ OUTPUT RULES
        · "low completeness"   — already in completeness_pts (capped 0-2)
        · "no GitHub stars"    — already in soft.ecosystem.stars
        · "no contributors"    — already in soft.ecosystem.contributors
+       · "no releases"        — already in soft.ecosystem.releases
        · "stale repo"         — already in soft.activity.recent_commit
+       · "no security headers"  — already in source_hygiene.security
+       · "no privacy policy"  — already in source_hygiene.legal
+       · "no terms of service" — already in source_hygiene.legal
+       · "thin README"        — already in source_hygiene.readme
+       · "no responsive design" — already in production_maturity.responsive
+       · "no mobile optimization" — already in production_maturity.responsive
+       · "committed .env"     — already deducted -5 deterministically
      If a project earned 2/10 in production_maturity, that 8-point gap from
      the ceiling IS the deduction. Adding a "−5 no tests" line on top
      punishes the same fact twice. The new rubric explicitly relocated those
@@ -1772,8 +1949,9 @@ Deno.serve(async (req) => {
 
   // Parallel external probes · Lighthouse runs TWICE (mobile + desktop) so
   // we can measure mobile-vs-desktop perf deltas — a polished-on-desktop
-  // app that tanks on mobile gets caught here.
-  const [lh, lhDesktop, gh, health, completeness] = await Promise.all([
+  // app that tanks on mobile gets caught here. Plus security headers and
+  // legal pages (Tier-1 completeness · v4).
+  const [lh, lhDesktop, gh, health, completeness, securityHeaders, legalPages] = await Promise.all([
     project.live_url ? runLighthouse(project.live_url, 'mobile')  : Promise.resolve({ performance: 0, accessibility: 0, bestPractices: 0, seo: 0 }),
     project.live_url ? runLighthouse(project.live_url, 'desktop') : Promise.resolve({ performance: 0, accessibility: 0, bestPractices: 0, seo: 0 }),
     project.github_url ? inspectGitHub(project.github_url) : Promise.resolve({ accessible: false, languages: {}, language_pct: {}, stars: 0, forks: 0, file_count_estimate: 0, last_commit_at: null }),
@@ -1785,6 +1963,14 @@ Deno.serve(async (req) => {
       has_theme_color: false, has_favicon: false, has_canonical: false,
       has_meta_desc: false,
       score: 0, filled: 0, of: 10,
+    }),
+    project.live_url ? inspectSecurityHeaders(project.live_url) : Promise.resolve({
+      fetched: false, has_csp: false, has_hsts: false, has_frame_protection: false,
+      has_content_type_opt: false, has_referrer_policy: false, has_permissions_policy: false,
+      filled: 0, of: 6,
+    }),
+    project.live_url ? inspectLegalPages(project.live_url) : Promise.resolve({
+      fetched: false, has_privacy: false, has_terms: false,
     }),
   ])
 
@@ -1799,10 +1985,16 @@ Deno.serve(async (req) => {
   const briefScore = scoreBriefIntegrity(brief ?? {})                          //  0-5  (0 for walk-on)
   const healthPts  = health.ok && health.elapsed_ms < 3000 ? 5 : 0             //  0-5
   const maturity   = scoreProductionMaturity(gh.signals, lh, lhDesktop)        //  0-12
-  const hygiene    = scoreSourceHygiene(gh)                                    //  0-5
+  const hygiene    = scoreSourceHygiene(gh, securityHeaders, legalPages)       //  0-7  (was 0-5 · +security/legal/readme)
   const completenessPts = scoreCompleteness(completeness)                      //  0-2
   const ecosystem  = scoreEcosystem(gh)                                        //  0-3 soft
   const activity   = scoreActivity(gh)                                         //  0-2 soft
+
+  // Hard security penalty · committed .env file is a categorical security
+  // violation that no amount of polish offsets. -5 deterministic, applied
+  // before cap so the best a project with .env in repo can score on
+  // walk-on (47/49 normalize) is ~85 even if all else is perfect.
+  const env_penalty = gh.signals.env_committed ? -5 : 0
 
   // Polish + Maturity coupling — a polished greenfield app with no tests /
   // no CI / no observability shouldn't outscore a real production library.
@@ -1819,9 +2011,9 @@ Deno.serve(async (req) => {
   // Hard 50-cap pillar — Lighthouse + Maturity + Hygiene + Completeness +
   // TechDiv + Live + Brief = 20 + 10 + 5 + 2 + 3 + 5 + 5 = 50 (before scaling).
   const auto_hard = scaledPolish + maturity.pts + hygiene.pts + briefScore.pts
-  // Soft bonus stacks ON TOP, capped so total stays ≤ 55.
+  // Soft bonus stacks ON TOP, capped so total stays ≤ 60 (54 hard + 5 soft + 1 buffer).
   const auto_soft = ecosystem.pts + activity.pts
-  const score_auto = Math.min(55, auto_hard + auto_soft)
+  const score_auto = Math.max(0, Math.min(60, auto_hard + auto_soft + env_penalty))
 
   // Fetch parent snapshot BEFORE Claude call — for re-analysis we want Claude
   // to frame deltas against the prior snapshot, not against the brief.
@@ -1876,24 +2068,27 @@ Deno.serve(async (req) => {
       ? Math.abs(lhDesktop.performance - lh.performance) : null,
     live_url_health: health,
     completeness_signals: completeness,
+    security_headers: securityHeaders,
+    legal_pages: legalPages,
     github: gh,
     scoring_so_far: {
       auto_50_breakdown: {
         lighthouse:           lhScore,                 //  0-20 (Performance 8 · A11y 5 · BP 4 · SEO 3)
-        production_maturity:  maturity,                //  0-10 (tests · CI · observability · TS strict · lockfile · LICENSE)
-        source_hygiene:       hygiene,                 //  0-5  (github accessible · monorepo · governance docs)
-        completeness_pts:     completenessPts,         //  0-2  (renormalized from 0-5 polish score)
+        production_maturity:  maturity,                //  0-12 (tests · CI · observability · TS strict · lockfile · LICENSE · responsive)
+        source_hygiene:       hygiene,                 //  0-7  (github · monorepo · governance · security · legal · readme)
+        completeness_pts:     completenessPts,         //  0-2
         tech_pts:             tech.pts,                //  0-3
         tech_layers_detected: tech.layers,
         brief_pts:            briefScore.pts,          //  0-5  (0 for walk-on)
         health_pts:           healthPts,               //  0-5
-        hard_subtotal:        auto_hard,               //  cap 50
+        env_penalty:          env_penalty,             //  -5 if .env committed
+        hard_subtotal:        auto_hard,               //  cap 54
         soft: {
-          ecosystem:          ecosystem,               //  +0-3 stars · contributors · npm dl
+          ecosystem:          ecosystem,               //  +0-3 stars · contributors · npm dl · releases
           activity:           activity,                //  +0-2 recent commit · momentum
           subtotal:           auto_soft,               //  +0-5
         },
-        total:                score_auto,              //  cap 55
+        total:                score_auto,              //  cap 60 (54 + 5 + buffer · env penalty applied)
       },
       polish_signals_0_to_5: completeness.score,
       form_factor:           gh.form_factor,
@@ -1925,7 +2120,7 @@ Deno.serve(async (req) => {
   // For league projects (auditioned), Claude's calibration matters
   // because it considers Brief integrity + Phase 1/2 cross-checks.
   const scoreTotal = isCliPreview
-    ? Math.min(100, Math.round((score_auto / 47) * 100))    // walk-on: deterministic /47 normalize (52 hard - 5 brief inaccessible)
+    ? Math.min(100, Math.round((score_auto / 49) * 100))    // walk-on: deterministic /49 normalize (54 hard - 5 brief inaccessible)
     : (claude.score?.current && claude.score.current > 0
         ? Math.round(claude.score.current)
         : score_auto)
