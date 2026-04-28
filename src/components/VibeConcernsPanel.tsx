@@ -9,13 +9,13 @@
 import type { ReactNode } from 'react'
 
 interface VibeConcerns {
-  webhook_idempotency: { handlers_seen: number; idempotency_signal_seen: number; gap: boolean; sample_files: string[] }
-  rls_gaps:            { tables: number; policies: number; writable_table_signals: number; gap_estimate: number; has_rls_intent: boolean }
-  secret_exposure:     { client_violations: Array<{ file: string; pattern: string }>; total: number }
-  db_indexes:          { fk_columns_seen: number; indexes_seen: number; gap_estimate: number }
-  observability:       { libs: string[]; detected: boolean }
+  webhook_idempotency: { handlers_seen: number; idempotency_signal_seen: number; signature_verified_seen?: number; gap: boolean; sample_files: string[] }
+  rls_gaps:            { tables: number; policies: number; writable_table_signals: number; gap_estimate: number; tables_uncovered?: string[]; has_rls_intent: boolean }
+  secret_exposure:     { client_violations: Array<{ file: string; pattern: string; reason?: string }>; total: number }
+  db_indexes:          { fk_columns_seen: number; indexes_seen: number; gap_estimate: number; unindexed_samples?: Array<{ file: string; column: string; references?: string }> }
+  observability:       { libs: string[]; detected: boolean; checked_subpackages?: number }
   rate_limit:          { lib_detected: string | null; middleware_detected: boolean; has_api_routes: boolean; needs_attention: boolean }
-  prompt_injection:    { uses_ai_sdk: boolean; raw_input_to_prompt_files: string[]; suspicious: boolean }
+  prompt_injection:    { uses_ai_sdk: boolean; ai_evidence_files?: string[]; raw_input_to_prompt_files: string[]; sanitization_detected?: boolean; suspicious: boolean }
 }
 
 type Status = 'pass' | 'warn' | 'fail' | 'na'
@@ -28,6 +28,7 @@ interface CardData {
   finding:   string             // one-line specific finding for THIS project
   why:       string             // why this matters for vibe coders (static)
   fix:       string | null      // suggested next step
+  evidence?: string[]           // file paths or table names backing this card
 }
 
 function evaluate(vc: VibeConcerns | null | undefined): CardData[] {
@@ -54,6 +55,7 @@ function evaluate(vc: VibeConcerns | null | undefined): CardData[] {
       finding,
       why: 'Stripe / Slack / GitHub retry webhooks if your endpoint returns non-2xx. Without an idempotency key, a payment can charge twice.',
       fix: status === 'fail' ? 'Add an idempotency-key check (Stripe `event.id`, Slack `event_id`, etc.) before the side effect.' : null,
+      evidence: w?.sample_files,
     })
   }
 
@@ -82,6 +84,7 @@ function evaluate(vc: VibeConcerns | null | undefined): CardData[] {
       finding,
       why: 'Supabase RLS is OFF by default. Any table without an `enable row level security` + matching `create policy` is readable / writable by every signed-in user.',
       fix: status === 'fail' || status === 'warn' ? 'Run `alter table <name> enable row level security;` then add `create policy` for each select/insert/update/delete.' : null,
+      evidence: r?.tables_uncovered,
     })
   }
 
@@ -103,6 +106,7 @@ function evaluate(vc: VibeConcerns | null | undefined): CardData[] {
       finding,
       why: 'Anything with `process.env.X` reachable from a client file ships in the JS bundle. Service-role keys = full database takeover.',
       fix: status === 'fail' ? 'Move secrets to server-only routes (`api/` · server actions · edge functions) and keep only `NEXT_PUBLIC_*` style anon keys client-side.' : null,
+      evidence: s?.client_violations?.map(v => `${v.file} · ${v.reason ?? v.pattern}`),
     })
   }
 
@@ -131,6 +135,7 @@ function evaluate(vc: VibeConcerns | null | undefined): CardData[] {
       finding,
       why: 'AI tends to write `references` clauses but forgets to add indexes. Queries stay fast at 1k rows; collapse at 100k.',
       fix: status !== 'pass' && status !== 'na' ? 'For every `_id uuid references X(id)`, add `create index <table>_<col>_idx on <table> (<col>);`.' : null,
+      evidence: d?.unindexed_samples?.map(u => u.references ? `${u.file} · ${u.column} → ${u.references}` : `${u.file} · ${u.column}`),
     })
   }
 
@@ -207,6 +212,7 @@ function evaluate(vc: VibeConcerns | null | undefined): CardData[] {
       finding,
       why: 'If `req.body.message` flows into your prompt, an attacker can override the system instructions, exfiltrate data, or rack up your token bill.',
       fix: status === 'warn' ? 'Wrap user input in a fixed delimiter (XML / JSON), validate length, and strip control chars before injecting into messages.' : null,
+      evidence: p?.raw_input_to_prompt_files,
     })
   }
   return cards
@@ -301,12 +307,29 @@ function Card({ card }: { card: CardData }) {
       </div>
       <details className="text-xs" style={{ color: 'rgba(255,255,255,0.6)' }}>
         <summary className="cursor-pointer font-mono text-[10px] tracking-widest uppercase mt-1" style={{ color: 'var(--gold-500)' }}>
-          Why this matters {card.fix ? ' · How to fix' : ''}
+          Why this matters {card.fix ? ' · How to fix' : ''}{card.evidence && card.evidence.length > 0 ? ' · Evidence' : ''}
         </summary>
         <div className="mt-2 space-y-2 font-light" style={{ lineHeight: 1.6 }}>
           <div><span className="font-mono text-[9px] tracking-widest mr-1.5" style={{ color: 'rgba(255,255,255,0.35)' }}>WHY</span>{card.why}</div>
           {card.fix && (
             <div><span className="font-mono text-[9px] tracking-widest mr-1.5" style={{ color: 'var(--gold-500)' }}>FIX</span>{card.fix}</div>
+          )}
+          {card.evidence && card.evidence.length > 0 && (
+            <div>
+              <span className="font-mono text-[9px] tracking-widest mr-1.5" style={{ color: 'rgba(255,255,255,0.35)' }}>EVIDENCE</span>
+              <ul className="mt-1 space-y-0.5">
+                {card.evidence.slice(0, 8).map((e, i) => (
+                  <li key={i} className="font-mono text-[11px]" style={{ color: 'rgba(255,255,255,0.7)' }}>
+                    · {e}
+                  </li>
+                ))}
+                {card.evidence.length > 8 && (
+                  <li className="font-mono text-[11px]" style={{ color: 'rgba(255,255,255,0.45)' }}>
+                    + {card.evidence.length - 8} more
+                  </li>
+                )}
+              </ul>
+            </div>
           )}
         </div>
       </details>

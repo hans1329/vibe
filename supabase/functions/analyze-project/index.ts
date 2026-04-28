@@ -165,13 +165,13 @@ interface GitHubInfo {
     // structured signals so the UI can render a 7-card status panel
     // and Claude can speak to specific concerns instead of generic ones.
     vibe_concerns: {
-      webhook_idempotency: { handlers_seen: number; idempotency_signal_seen: number; gap: boolean; sample_files: string[] }
-      rls_gaps:            { tables: number; policies: number; writable_table_signals: number; gap_estimate: number; has_rls_intent: boolean }
-      secret_exposure:     { client_violations: Array<{ file: string; pattern: string }>; total: number }
-      db_indexes:          { fk_columns_seen: number; indexes_seen: number; gap_estimate: number }
-      observability:       { libs: string[]; detected: boolean }
+      webhook_idempotency: { handlers_seen: number; idempotency_signal_seen: number; signature_verified_seen?: number; gap: boolean; sample_files: string[] }
+      rls_gaps:            { tables: number; policies: number; writable_table_signals: number; gap_estimate: number; tables_uncovered?: string[]; has_rls_intent: boolean }
+      secret_exposure:     { client_violations: Array<{ file: string; pattern: string; reason?: string }>; total: number }
+      db_indexes:          { fk_columns_seen: number; indexes_seen: number; gap_estimate: number; unindexed_samples?: Array<{ file: string; column: string; references?: string }> }
+      observability:       { libs: string[]; detected: boolean; checked_subpackages?: number }
       rate_limit:          { lib_detected: string | null; middleware_detected: boolean; has_api_routes: boolean; needs_attention: boolean }
-      prompt_injection:    { uses_ai_sdk: boolean; raw_input_to_prompt_files: string[]; suspicious: boolean }
+      prompt_injection:    { uses_ai_sdk: boolean; ai_evidence_files?: string[]; raw_input_to_prompt_files: string[]; sanitization_detected?: boolean; suspicious: boolean }
     }
   }
   readme_excerpt: string | null          // first ~2KB for Claude context
@@ -654,91 +654,226 @@ async function inspectGitHub(url: string): Promise<GitHubInfo> {
     !ENV_DOTENVX_RE.test(p)
   )
 
-  // ── Vibe Coder Checklist · 7-category framework (2026-04-28) ──
-  // The 70% of vibe-coded projects miss systematic failure modes that
-  // generic linters / Cursor reviews don't catch. We probe a handful of
-  // high-leverage files to surface them as structured signals. UI + CLI
-  // render this as a 7-card / 7-line checklist.
+  // ── Vibe Coder Checklist · 7-category framework (Phase 2 · deep code reading) ──
+  // Each category does:
+  //   1) Identify a small set of HIGH-LEVERAGE files (regex on path).
+  //   2) Fetch the source (cached if shared with other categories).
+  //   3) Cross-reference patterns inside the file (not just path/dep scan).
+  //   4) Produce both a status flag AND specific evidence file paths.
+  //
+  // Cost: ~10-20 extra ghText fetches per audit (~50-150 KB of source).
+  // Cached per-fetch — duplicate paths counted once.
+  const fileCache = new Map<string, string>()
+  async function readFile(p: string): Promise<string | null> {
+    const hit = fileCache.get(p)
+    if (hit !== undefined) return hit
+    const t = await ghText(`/contents/${encodeURI(p)}?ref=${defBranch}`)
+    fileCache.set(p, t ?? '')
+    return t || null
+  }
 
-  // 1. WEBHOOK IDEMPOTENCY · Stripe / payment / webhooks endpoint files
+  // 1. WEBHOOK IDEMPOTENCY ·
+  // Detect: stripe.webhooks.constructEvent (signature verify) AND
+  //         a dedup mechanism (idempotency key check before side effect ·
+  //         processedEvents table · redis SET NX · already_processed flag).
+  // Mark `pass` only when BOTH appear; `fail` when handler is found but
+  // dedup is missing.
   const webhookFiles = paths.filter(p =>
     /(^|\/)(webhooks?|api\/webhook|stripe|payments?)\/[^/]+\.(ts|tsx|js|jsx|mjs|py|go|rs)$/i.test(p) ||
     /(^|\/)api\/.*(webhook|stripe|paypal|payment).*\.(ts|js|tsx|jsx|mjs)$/i.test(p)
   ).slice(0, 6)
   let webhook_handlers_seen = 0
+  let webhook_signed_verified = 0
   let webhook_idempotency_seen = 0
   const webhook_evidence_files: string[] = []
   for (const f of webhookFiles) {
-    const text = await ghText(`/contents/${encodeURI(f)}?ref=${defBranch}`)
+    const text = await readFile(f)
     if (!text) continue
     webhook_handlers_seen++
-    if (/idempotency[_-]?key|idempotent|processedEvents|webhook_id\b|event[._]id\b|already[_-]?processed|stripe-signature/i.test(text)) {
+    if (webhook_evidence_files.length < 4) webhook_evidence_files.push(f)
+    if (/stripe\.webhooks\.constructEvent|verifyWebhookSignature|svix|stripe-signature|x-hub-signature|x-slack-signature/i.test(text)) {
+      webhook_signed_verified++
+    }
+    // Strong dedup signals (any of these):
+    //   - idempotency key referenced
+    //   - processedEvents / event_log table check
+    //   - redis NX SETNX (atomic dedup)
+    //   - "already_processed" / "alreadyProcessed" boolean
+    //   - event.id check vs DB
+    if (
+      /idempotency[_-]?key|Idempotency-Key/i.test(text) ||
+      /processed[_-]?events|event[_-]?log/i.test(text) ||
+      /SETNX|set\(.+,.+,\s*['"]NX['"]|setIfNotExists/i.test(text) ||
+      /already[_-]?processed|alreadyProcessed/i.test(text) ||
+      /event\.id\s*[=,]\s*event_id|webhook_id\s*=\s*event\.id/i.test(text)
+    ) {
       webhook_idempotency_seen++
     }
-    if (webhook_evidence_files.length < 3) webhook_evidence_files.push(f)
   }
+  const webhook_gap = webhook_handlers_seen > 0 && webhook_idempotency_seen < webhook_handlers_seen
 
-  // 2. SUPABASE RLS GAPS · use existing rls signals + state-changing detection
-  // Heuristic: count tables with INSERT/UPDATE/DELETE in migrations vs
-  // policy count. supabase/postgres-only — best-effort gap estimate.
-  const rls_tables_writable = (function () {
-    let count = 0
-    for (const text of sqlSampleCache.values()) {
-      count += (text.match(/insert\s+into\b|update\s+\w+\s+set\b|delete\s+from\b/gi) || []).length
-    }
-    return count
-  })()
-  // gap_estimate = max(0, tables_with_writes - policies). Crude but directionally OK.
-  const rls_gap_estimate = Math.max(0, createTableCount - rlsPolicyCount)
+  // 2. RLS GAPS · per-table coverage
+  // Build sets of:
+  //   - tables created (CREATE TABLE <name>)
+  //   - tables with RLS toggled on (alter table <name> enable row level security)
+  //   - tables with at least one policy (CREATE POLICY ... ON <name>)
+  // Gap = tables that lack BOTH the toggle AND any policy. State-changing
+  // tables (those referenced by INSERT/UPDATE/DELETE) bias the gap as
+  // "high impact" — anything writable without RLS is open to all signed-in.
+  const tablesCreated   = new Set<string>()
+  const tablesWithRls   = new Set<string>()
+  const tablesWithPol   = new Set<string>()
+  for (const text of sqlSampleCache.values()) {
+    const ct = text.matchAll(/create\s+table\s+(?:if\s+not\s+exists\s+)?(?:public\.|"public"\.)?\s*"?(\w+)"?/gi)
+    for (const m of ct) tablesCreated.add(m[1].toLowerCase())
+    const rls = text.matchAll(/alter\s+table\s+(?:public\.|"public"\.)?\s*"?(\w+)"?\s+enable\s+row\s+level\s+security/gi)
+    for (const m of rls) tablesWithRls.add(m[1].toLowerCase())
+    const pol = text.matchAll(/create\s+policy\s+[^;]*?\bon\s+(?:public\.|"public"\.)?\s*"?(\w+)"?/gi)
+    for (const m of pol) tablesWithPol.add(m[1].toLowerCase())
+  }
+  const tables_uncovered: string[] = []
+  for (const t of tablesCreated) {
+    if (!tablesWithRls.has(t) && !tablesWithPol.has(t)) tables_uncovered.push(t)
+  }
+  const rls_gap_count = tables_uncovered.length
 
-  // 3. SERVICE-ROLE / SECRET CLIENT EXPOSURE · scan client-side files only
-  // Client paths · NOT API/server/middleware. Also exclude tests/storybook.
-  const SECRET_PATTERNS = /(SUPABASE_SERVICE_ROLE_KEY|SERVICE_ROLE_KEY|service[_-]?role|sk_live_[a-zA-Z0-9]{8,}|sk_test_[a-zA-Z0-9]{8,}|OPENAI_API_KEY|STRIPE_SECRET_KEY|ANTHROPIC_API_KEY|AWS_SECRET_ACCESS_KEY|GITHUB_TOKEN\s*=)/g
+  // 3. SECRET CLIENT EXPOSURE · stricter regex + Next.js "use client" boost
+  // Reduce noise: only regex match if the line ALSO references env access
+  // (process.env.X · import.meta.env.X) or a literal token starting with
+  // sk_live_ etc.
+  const SECRET_PATTERNS = [
+    { re: /process\.env\.(SUPABASE_SERVICE_ROLE_KEY|SERVICE_ROLE_KEY|STRIPE_SECRET_KEY|OPENAI_API_KEY|ANTHROPIC_API_KEY|AWS_SECRET_ACCESS_KEY)/g, label: 'env var' },
+    { re: /sk_live_[a-zA-Z0-9]{16,}/g,  label: 'stripe live key' },
+    { re: /sk_test_[a-zA-Z0-9]{16,}/g,  label: 'stripe test key' },
+    { re: /sk-ant-[a-zA-Z0-9_-]{40,}/g, label: 'anthropic key' },
+    { re: /sk-[a-zA-Z0-9]{32,}/g,        label: 'openai key' },
+    { re: /AKIA[A-Z0-9]{16}/g,           label: 'aws access key' },
+    { re: /github_pat_[A-Za-z0-9_]{20,}|gh[ps]_[A-Za-z0-9_]{30,}/g, label: 'github token' },
+  ]
   const clientPaths = paths.filter(p =>
     /\.(ts|tsx|js|jsx|svelte|vue|astro)$/.test(p) &&
     /(^|\/)(src\/(components|pages|app|features|views|screens)|app|pages|components)\//.test(p) &&
     !/(^|\/)(api|server|backend|edge|functions|middleware)\//.test(p) &&
     !/\.(test|spec|stories)\./i.test(p) &&
     !/\.d\.ts$/.test(p)
-  ).slice(0, 25)
-  const secret_violations: Array<{ file: string; pattern: string }> = []
+  ).slice(0, 30)
+  const secret_violations: Array<{ file: string; pattern: string; reason: string }> = []
   for (const f of clientPaths) {
-    const text = await ghText(`/contents/${encodeURI(f)}?ref=${defBranch}`)
+    const text = await readFile(f)
     if (!text) continue
-    const m = text.match(SECRET_PATTERNS)
-    if (m && m[0]) {
-      secret_violations.push({ file: f, pattern: m[0].slice(0, 30) })
-      if (secret_violations.length >= 5) break
+    // Skip if file is explicitly server-side ("use server" directive)
+    if (/^['"]use server['"]/m.test(text)) continue
+    for (const { re, label } of SECRET_PATTERNS) {
+      const m = text.match(re)
+      if (m && m[0]) {
+        const useClient = /^['"]use client['"]/m.test(text)
+        secret_violations.push({
+          file: f,
+          pattern: m[0].slice(0, 40),
+          reason: useClient ? `${label} in 'use client' file (definitive bundle leak)` : label,
+        })
+        break
+      }
     }
+    if (secret_violations.length >= 6) break
   }
 
-  // 4. DATABASE MISSING INDEXES · scan migrations for FK columns without CREATE INDEX
-  let fk_columns_seen = 0
-  let indexes_seen = 0
-  const FK_RE = /references\s+\w+\s*\(\s*\w+\s*\)|\b\w+_id\s+(uuid|integer|bigint|int)\b/gi
-  const INDEX_RE = /create\s+(unique\s+)?index/gi
-  for (const text of sqlSampleCache.values()) {
-    fk_columns_seen += (text.match(FK_RE) || []).length
-    indexes_seen    += (text.match(INDEX_RE) || []).length
+  // 4. DB MISSING INDEXES · per-FK column check within the same SQL file
+  // For each migration file, extract:
+  //   - FK columns:    `<col_name> ... references <table>(<col>)` or `_id <type>` patterns
+  //   - INDEX columns: `create index ... on <table> (<col>)`
+  // Per-file gap = FK columns not covered by an index.
+  const index_unindexed_columns: Array<{ file: string; column: string; references?: string }> = []
+  for (const [filePath, text] of sqlSampleCache) {
+    const fkMatches: Array<{ col: string; ref?: string }> = []
+    const fkPattern = /(\w+)\s+(?:uuid|integer|bigint|int|serial|text|varchar)[^,)]*?references\s+(\w+)/gi
+    for (const m of text.matchAll(fkPattern)) fkMatches.push({ col: m[1], ref: m[2] })
+    // _id columns also (common implicit FK convention)
+    const idColPattern = /\b(\w+_id)\s+(?:uuid|integer|bigint|int|serial)\b/gi
+    for (const m of text.matchAll(idColPattern)) {
+      const col = m[1]
+      if (!fkMatches.some(x => x.col.toLowerCase() === col.toLowerCase())) fkMatches.push({ col })
+    }
+    // Indexes in same file: create index ... on <table> (<col>)
+    const indexedCols = new Set<string>()
+    const ixPattern = /create\s+(?:unique\s+)?index[^;]*?\(\s*"?(\w+)"?/gi
+    for (const m of text.matchAll(ixPattern)) indexedCols.add(m[1].toLowerCase())
+    // PRIMARY KEY columns get an implicit index — skip
+    const pkPattern = /\bprimary\s+key\b[^,)]*?(?:\(\s*(\w+)|(\w+))/gi
+    for (const m of text.matchAll(pkPattern)) {
+      const col = (m[1] || m[2] || '').toLowerCase()
+      if (col) indexedCols.add(col)
+    }
+    for (const fk of fkMatches) {
+      if (!indexedCols.has(fk.col.toLowerCase())) {
+        index_unindexed_columns.push({ file: filePath, column: fk.col, references: fk.ref })
+        if (index_unindexed_columns.length >= 25) break
+      }
+    }
+    if (index_unindexed_columns.length >= 25) break
   }
-  const index_gap_estimate = Math.max(0, fk_columns_seen - indexes_seen)
+  const fk_columns_seen = (() => {
+    let n = 0
+    for (const text of sqlSampleCache.values()) {
+      n += (text.match(/references\s+\w+/gi) || []).length
+      n += (text.match(/\b\w+_id\s+(uuid|integer|bigint|int|serial)\b/gi) || []).length
+    }
+    return n
+  })()
+  const indexes_seen = (() => {
+    let n = 0
+    for (const text of sqlSampleCache.values()) n += (text.match(/create\s+(unique\s+)?index/gi) || []).length
+    return n
+  })()
 
-  // 5. OBSERVABILITY · already detected via observabilityLibs above (reuse).
+  // 5. OBSERVABILITY · root + monorepo sub-package package.json scan
+  // Re-check observabilityLibs but also check packages/<name>/package.json
+  // for monorepo workspaces (root often empty in those).
+  const subPackageJsons = paths.filter(p => /^packages\/[^/]+\/package\.json$/.test(p)).slice(0, 6)
+  const monorepoObs = new Set<string>(observabilityLibs)
+  for (const subPath of subPackageJsons) {
+    const text = await readFile(subPath)
+    if (!text) continue
+    try {
+      const sub = JSON.parse(text)
+      const subDeps = { ...(sub.dependencies || {}), ...(sub.devDependencies || {}) } as Record<string, string>
+      for (const prefix of OBSERVABILITY_LIBS) {
+        if (Object.keys(subDeps).some(k => k === prefix || k.startsWith(prefix))) {
+          monorepoObs.add(prefix)
+        }
+      }
+    } catch { /* ignore */ }
+  }
+  const observability_libs_full = [...monorepoObs]
 
-  // 6. RATE LIMITING · package.json libs + middleware presence
+  // 6. RATE LIMIT · package.json libs + middleware presence + bypass detect
   const RATE_LIMIT_LIBS = ['@upstash/ratelimit', 'express-rate-limit', 'rate-limiter-flexible', 'next-rate-limit', 'hono-rate-limiter']
   const allDeps = pkgParsed
     ? { ...((pkgParsed as { dependencies?: Record<string, string> }).dependencies ?? {}), ...((pkgParsed as { devDependencies?: Record<string, string> }).devDependencies ?? {}) }
     : {}
   const rate_limit_lib = RATE_LIMIT_LIBS.find(l => Object.keys(allDeps).some(k => k === l || k.startsWith(l))) ?? null
+  // Check sub-packages too
+  let rate_limit_lib_in_subpkg: string | null = null
+  if (!rate_limit_lib) {
+    for (const subPath of subPackageJsons) {
+      const text = await readFile(subPath)
+      if (!text) continue
+      try {
+        const sub = JSON.parse(text)
+        const subDeps = { ...(sub.dependencies || {}), ...(sub.devDependencies || {}) } as Record<string, string>
+        const found = RATE_LIMIT_LIBS.find(l => Object.keys(subDeps).some(k => k === l || k.startsWith(l)))
+        if (found) { rate_limit_lib_in_subpkg = found; break }
+      } catch { /* ignore */ }
+    }
+  }
   const middleware_files = paths.filter(p =>
     /(^|\/)(middleware|rate[-_]?limit|throttle)/i.test(p) &&
     /\.(ts|tsx|js|jsx|mjs)$/.test(p)
   ).slice(0, 4)
   let rate_limit_middleware_detected = false
   for (const f of middleware_files) {
-    const text = await ghText(`/contents/${encodeURI(f)}?ref=${defBranch}`)
-    if (text && /rate[_-]?limit|RateLimiter|throttle\(|requestLimit/i.test(text)) {
+    const text = await readFile(f)
+    if (text && /rate[_-]?limit|RateLimiter|throttle\(|requestLimit|@upstash\/ratelimit/i.test(text)) {
       rate_limit_middleware_detected = true
       break
     }
@@ -747,45 +882,66 @@ async function inspectGitHub(url: string): Promise<GitHubInfo> {
     /^(app\/api|src\/api|pages\/api|api)\//.test(p) ||
     /^supabase\/functions\//.test(p)
   )
-  const rate_limit_needs_attention = has_api_routes && !rate_limit_lib && !rate_limit_middleware_detected
+  const rate_limit_lib_effective = rate_limit_lib ?? rate_limit_lib_in_subpkg
+  const rate_limit_needs_attention = has_api_routes && !rate_limit_lib_effective && !rate_limit_middleware_detected
 
-  // 7. PROMPT INJECTION RISK (heuristic) · uses AI SDK + handles user input
-  const uses_ai_sdk = aiLibs.length > 0
-  // Look for handler files where prompt template includes req.body / params
+  // 7. PROMPT INJECTION · improved detection
+  // Detect AI usage three ways:
+  //   a) npm SDK in package.json (existing)
+  //   b) direct fetch to api.anthropic.com / openai.com / api.groq.com
+  //   c) `messages: [{ role: 'user', content: ... }]` literal
+  // Then check if user input flows in.
   const apiHandlerFiles = paths.filter(p =>
     /^(app\/api|src\/api|pages\/api|api|supabase\/functions)\//.test(p) &&
     /\.(ts|tsx|js|jsx|mjs)$/.test(p)
-  ).slice(0, 6)
+  ).slice(0, 8)
+  const ai_evidence_files: string[] = []
+  let direct_ai_fetch_detected = false
   let raw_input_to_prompt_files: string[] = []
-  if (uses_ai_sdk) {
-    for (const f of apiHandlerFiles) {
-      const text = await ghText(`/contents/${encodeURI(f)}?ref=${defBranch}`)
-      if (!text) continue
-      // Crude: if file imports an AI SDK AND uses req.body or params in a prompt-like template
-      const importsAi = /from\s+['"](?:@anthropic-ai\/sdk|openai|@google\/generative|langchain|ai\b)/i.test(text)
-      const inlinesUserInput = /(prompt|content|messages?)\s*[:=].*?(req\.body|request\.body|params\.|searchParams\.|body\.)/.test(text)
-      if (importsAi && inlinesUserInput) {
-        raw_input_to_prompt_files.push(f)
-        if (raw_input_to_prompt_files.length >= 3) break
-      }
+  let sanitization_detected = false
+  for (const f of apiHandlerFiles) {
+    const text = await readFile(f)
+    if (!text) continue
+    const aiSignals =
+      /from\s+['"](?:@anthropic-ai\/sdk|openai|@google\/generative|langchain|llamaindex|ai\b)/i.test(text) ||
+      /api\.anthropic\.com|api\.openai\.com|api\.groq\.com|api\.cohere\.ai|generativelanguage\.googleapis\.com/i.test(text) ||
+      /messages\s*:\s*\[\s*\{\s*role\s*:\s*['"](?:user|system|assistant)['"]/i.test(text)
+    if (!aiSignals) continue
+    if (ai_evidence_files.length < 4) ai_evidence_files.push(f)
+    if (/api\.(anthropic|openai|groq|cohere)/i.test(text)) direct_ai_fetch_detected = true
+    const inlinesUserInput =
+      /(prompt|content|messages?)\s*[:=][^\n]*?(req\.body|request\.body|params\.|searchParams\.get|body\.|payload\.|input\.|message\.)/i.test(text) ||
+      /\$\{(?:req\.body|request\.body|body|params|input|message|userMessage|userInput)\b[^}]*\}/i.test(text)
+    if (inlinesUserInput) raw_input_to_prompt_files.push(f)
+    // Sanitization heuristic: zod / yup parse, .slice() length cap, replace control chars
+    if (
+      /(zod|z\.object|z\.string\(\)\.\w+|yup\.|joi\.|validator\.|sanitize|escape)/i.test(text) ||
+      /\.slice\(0,\s*\d{2,5}\)|\.substring\(0,\s*\d{2,5}\)/i.test(text)
+    ) {
+      sanitization_detected = true
     }
+    if (raw_input_to_prompt_files.length >= 4) break
   }
-  const prompt_injection_suspicious = raw_input_to_prompt_files.length > 0
+  const uses_ai_sdk = aiLibs.length > 0 || direct_ai_fetch_detected || ai_evidence_files.length > 0
+  const prompt_injection_suspicious = raw_input_to_prompt_files.length > 0 && !sanitization_detected
 
   // Aggregate vibe_concerns object — surfaced both to Claude evidence pack
-  // and persisted in github_signals for UI rendering.
+  // and persisted in github_signals for UI rendering. Each category now
+  // ships an `evidence_files` array so the UI can show specific paths.
   const vibe_concerns = {
     webhook_idempotency: {
       handlers_seen: webhook_handlers_seen,
       idempotency_signal_seen: webhook_idempotency_seen,
-      gap: webhook_handlers_seen > 0 && webhook_idempotency_seen < webhook_handlers_seen,
+      signature_verified_seen: webhook_signed_verified,
+      gap: webhook_gap,
       sample_files: webhook_evidence_files,
     },
     rls_gaps: {
       tables: createTableCount,
       policies: rlsPolicyCount,
-      writable_table_signals: rls_tables_writable,
-      gap_estimate: rls_gap_estimate,
+      writable_table_signals: 0,                 // legacy field · kept for back-compat (UI ignores)
+      gap_estimate: rls_gap_count,
+      tables_uncovered: tables_uncovered.slice(0, 12),
       has_rls_intent: hasRls,
     },
     secret_exposure: {
@@ -795,21 +951,25 @@ async function inspectGitHub(url: string): Promise<GitHubInfo> {
     db_indexes: {
       fk_columns_seen,
       indexes_seen,
-      gap_estimate: index_gap_estimate,
+      gap_estimate: index_unindexed_columns.length,
+      unindexed_samples: index_unindexed_columns.slice(0, 8),
     },
     observability: {
-      libs: observabilityLibs,
-      detected: observabilityLibs.length > 0,
+      libs: observability_libs_full,
+      detected: observability_libs_full.length > 0,
+      checked_subpackages: subPackageJsons.length,
     },
     rate_limit: {
-      lib_detected: rate_limit_lib,
+      lib_detected: rate_limit_lib_effective,
       middleware_detected: rate_limit_middleware_detected,
       has_api_routes,
       needs_attention: rate_limit_needs_attention,
     },
     prompt_injection: {
       uses_ai_sdk,
+      ai_evidence_files,
       raw_input_to_prompt_files,
+      sanitization_detected,
       suspicious: prompt_injection_suspicious,
     },
   }

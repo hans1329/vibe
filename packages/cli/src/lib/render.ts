@@ -258,6 +258,11 @@ export function renderAudit(view: AuditView): string {
         // Second line: indented detail
         const detailTrunc = truncate(detailVisible, 50)
         lines.push('  ' + boxRow(2 + detailTrunc.length, c.muted('  ') + c.muted(detailTrunc)))
+        // Third line: evidence (if any) · only on fail/warn so success cases stay compact
+        if (it.evidence && (it.status === 'fail' || it.status === 'warn')) {
+          const evTrunc = truncate(it.evidence, 50)
+          lines.push('  ' + boxRow(2 + evTrunc.length, c.muted('  → ') + c.muted(evTrunc)))
+        }
       }
       lines.push('  ' + boxBottom())
       lines.push('')
@@ -290,15 +295,16 @@ export function renderAudit(view: AuditView): string {
 
 // ─── Vibe Coder Checklist · 7-category framework ───
 type VibeStatus = 'pass' | 'warn' | 'fail' | 'na'
-function vibeChecklistLines(vc: any): Array<{ key: string; status: VibeStatus; label: string; detail: string }> {
-  const out: Array<{ key: string; status: VibeStatus; label: string; detail: string }> = []
+function vibeChecklistLines(vc: any): Array<{ key: string; status: VibeStatus; label: string; detail: string; evidence?: string }> {
+  const out: Array<{ key: string; status: VibeStatus; label: string; detail: string; evidence?: string }> = []
   // 1. Webhook idempotency
   {
     const w = vc?.webhook_idempotency
     if (w && w.handlers_seen > 0) {
+      const ev = w.sample_files?.[0]
       out.push(w.gap
-        ? { key:'webhook', status:'fail', label:'Webhook idempotency', detail:`${w.handlers_seen} handler${w.handlers_seen>1?'s':''} · 0 idempotency-key check found` }
-        : { key:'webhook', status:'pass', label:'Webhook idempotency', detail:`${w.idempotency_signal_seen}/${w.handlers_seen} handler${w.handlers_seen>1?'s':''} dedupe by event id` })
+        ? { key:'webhook', status:'fail', label:'Webhook idempotency', detail:`${w.handlers_seen} handler${w.handlers_seen>1?'s':''} · 0 idempotency-key check found`, evidence: ev }
+        : { key:'webhook', status:'pass', label:'Webhook idempotency', detail:`${w.idempotency_signal_seen}/${w.handlers_seen} handler${w.handlers_seen>1?'s':''} dedupe by event id`, evidence: ev })
     } else {
       out.push({ key:'webhook', status:'na', label:'Webhook idempotency', detail:'no webhook handler files detected' })
     }
@@ -307,9 +313,12 @@ function vibeChecklistLines(vc: any): Array<{ key: string; status: VibeStatus; l
   {
     const r = vc?.rls_gaps
     if (r && r.tables > 0) {
-      if (!r.has_rls_intent) out.push({ key:'rls', status:'fail', label:'RLS coverage', detail:`${r.tables} tables · 0 row-level-security policies` })
-      else if (r.gap_estimate >= 3) out.push({ key:'rls', status:'warn', label:'RLS coverage', detail:`${r.tables} tables · ${r.policies} policies · ~${r.gap_estimate} likely uncovered` })
-      else out.push({ key:'rls', status:'pass', label:'RLS coverage', detail:`${r.tables} tables · ${r.policies} policies · gap minimal` })
+      const evList: string[] = r.tables_uncovered ?? []
+      const ev = evList.length > 0 ? `tables: ${evList.slice(0,3).join(', ')}${evList.length > 3 ? ` +${evList.length-3}` : ''}` : undefined
+      if (!r.has_rls_intent) out.push({ key:'rls', status:'fail', label:'RLS coverage', detail:`${r.tables} tables · 0 row-level-security policies`, evidence: ev })
+      else if (r.gap_estimate >= 3) out.push({ key:'rls', status:'warn', label:'RLS coverage', detail:`${r.tables} tables · ${r.policies} policies · ${r.gap_estimate} uncovered`, evidence: ev })
+      else if (r.gap_estimate > 0) out.push({ key:'rls', status:'warn', label:'RLS coverage', detail:`${r.tables} tables · ${r.policies} policies · ${r.gap_estimate} uncovered`, evidence: ev })
+      else out.push({ key:'rls', status:'pass', label:'RLS coverage', detail:`${r.tables} tables · ${r.policies} policies · all covered` })
     } else {
       out.push({ key:'rls', status:'na', label:'RLS coverage', detail:'no SQL migrations detected' })
     }
@@ -319,7 +328,8 @@ function vibeChecklistLines(vc: any): Array<{ key: string; status: VibeStatus; l
     const s = vc?.secret_exposure
     if (s && s.total > 0) {
       const first = s.client_violations[0]
-      out.push({ key:'secrets', status:'fail', label:'Secret in client code', detail:`${s.total} file${s.total>1?'s':''} · e.g. ${first?.pattern ?? '?'}` })
+      const ev = first ? `${first.file} · ${first.reason ?? first.pattern}` : undefined
+      out.push({ key:'secrets', status:'fail', label:'Secret in client code', detail:`${s.total} file${s.total>1?'s':''} · e.g. ${first?.pattern ?? '?'}`, evidence: ev })
     } else {
       out.push({ key:'secrets', status:'pass', label:'Secret in client code', detail:'no service-role keys in client paths' })
     }
@@ -328,8 +338,12 @@ function vibeChecklistLines(vc: any): Array<{ key: string; status: VibeStatus; l
   {
     const d = vc?.db_indexes
     if (d && d.fk_columns_seen > 0) {
-      if (d.gap_estimate >= 3) out.push({ key:'indexes', status:'warn', label:'Database indexes', detail:`${d.fk_columns_seen} FK columns · ${d.indexes_seen} CREATE INDEX` })
-      else if (d.gap_estimate > 0) out.push({ key:'indexes', status:'warn', label:'Database indexes', detail:`${d.fk_columns_seen} FK columns · ${d.indexes_seen} indexes · ${d.gap_estimate} likely gaps` })
+      const sample = d.unindexed_samples?.[0]
+      const ev = sample
+        ? (sample.references ? `${sample.file} · ${sample.column} → ${sample.references}` : `${sample.file} · ${sample.column}`)
+        : undefined
+      if (d.gap_estimate >= 3) out.push({ key:'indexes', status:'warn', label:'Database indexes', detail:`${d.fk_columns_seen} FK columns · ${d.indexes_seen} indexes · ${d.gap_estimate} unindexed`, evidence: ev })
+      else if (d.gap_estimate > 0) out.push({ key:'indexes', status:'warn', label:'Database indexes', detail:`${d.fk_columns_seen} FK · ${d.indexes_seen} idx · ${d.gap_estimate} unindexed`, evidence: ev })
       else out.push({ key:'indexes', status:'pass', label:'Database indexes', detail:`${d.fk_columns_seen} FK columns · ${d.indexes_seen} indexes · healthy` })
     } else {
       out.push({ key:'indexes', status:'na', label:'Database indexes', detail:'no SQL migrations detected' })
