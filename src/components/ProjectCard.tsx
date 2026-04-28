@@ -95,7 +95,7 @@ export function ProjectCard({ project: p, delta, hideScore, onForecast, showFore
     >
       {/* Thumbnail */}
       {p.thumbnail_url ? (
-        <div className="relative" style={{ aspectRatio: '3 / 2', overflow: 'hidden', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+        <div className="relative" style={{ aspectRatio: '1200 / 630', overflow: 'hidden', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
           <img
             src={p.thumbnail_url}
             alt={`${p.project_name} thumbnail`}
@@ -127,7 +127,7 @@ export function ProjectCard({ project: p, delta, hideScore, onForecast, showFore
           )}
         </div>
       ) : (
-        <div className="flex items-center justify-center font-mono text-xs" style={{ aspectRatio: '3 / 2', background: 'var(--navy-800)', color: 'var(--text-faint)', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+        <div className="flex items-center justify-center font-mono text-xs" style={{ aspectRatio: '1200 / 630', background: 'var(--navy-800)', color: 'var(--text-faint)', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
           NO IMAGE
         </div>
       )}

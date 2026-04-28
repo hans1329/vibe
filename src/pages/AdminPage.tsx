@@ -59,6 +59,41 @@ interface RecentAudit {
   error_msg:    string | null
 }
 
+interface SeasonRow {
+  id:               string
+  name:             string
+  start_date:       string
+  end_date:         string
+  applaud_end:      string
+  graduation_date:  string
+  status:           string
+}
+
+// Season date arithmetic (CLAUDE.md §11.2):
+//   Week 1-3 = Day 1-21 → end_date = start + 20d (inclusive day 21)
+//   Graduation Week = Day 22-28 → applaud_end = start + 27d
+//   Graduation Day  = Day 29 → graduation_date = start + 28d
+function computeSeasonDates(startISO: string) {
+  const start = new Date(startISO + 'T00:00:00Z')
+  const addDays = (n: number) => {
+    const d = new Date(start.getTime())
+    d.setUTCDate(d.getUTCDate() + n)
+    return d.toISOString().slice(0, 10)
+  }
+  return {
+    end_date:        addDays(20),
+    applaud_end:     addDays(27),
+    graduation_date: addDays(28),
+  }
+}
+
+const STATUS_COLORS: Record<string, string> = {
+  upcoming:  'rgba(255,255,255,0.55)',
+  active:    '#F0C040',
+  applaud:   '#A78BFA',
+  completed: 'rgba(255,255,255,0.45)',
+}
+
 export function AdminPage() {
   const { user, member, loading } = useAuth()
   const navigate = useNavigate()
@@ -79,6 +114,18 @@ export function AdminPage() {
   const [refreshing, setRefreshing] = useState(false)
   const [refreshOut, setRefreshOut] = useState<string | null>(null)
 
+  // 권한 토글
+  const [grantBusyId, setGrantBusyId]     = useState<string | null>(null)
+  const [grantOut, setGrantOut]           = useState<string | null>(null)
+
+  // 시즌 관리
+  const [seasons, setSeasons]             = useState<SeasonRow[]>([])
+  const [seasonName, setSeasonName]       = useState('')
+  const [seasonStart, setSeasonStart]     = useState('')   // YYYY-MM-DD
+  const [seasonStatus, setSeasonStatus]   = useState<'upcoming' | 'active'>('upcoming')
+  const [seasonBusy, setSeasonBusy]       = useState(false)
+  const [seasonOut, setSeasonOut]         = useState<string | null>(null)
+
   const isAdmin = !!member?.is_admin
 
   useEffect(() => {
@@ -91,10 +138,19 @@ export function AdminPage() {
   async function loadAll() {
     setLoadErr(null)
     try {
-      await Promise.all([loadUserStats(), loadAuditStats(), loadCliUsage(), loadRecent(), loadUserList()])
+      await Promise.all([loadUserStats(), loadAuditStats(), loadCliUsage(), loadRecent(), loadUserList(), loadSeasons()])
     } catch (e: any) {
       setLoadErr(String(e?.message ?? e))
     }
+  }
+
+  async function loadSeasons() {
+    const { data } = await supabase
+      .from('seasons')
+      .select('id, name, start_date, end_date, applaud_end, graduation_date, status')
+      .order('start_date', { ascending: false })
+      .limit(10)
+    setSeasons((data ?? []) as SeasonRow[])
   }
 
   async function loadUserList() {
@@ -249,6 +305,103 @@ export function AdminPage() {
     }
   }
 
+  async function handleToggleAdmin(target: UserRow) {
+    if (!token) { setGrantOut('관리자 토큰이 필요합니다 · 도구 탭에서 입력'); return }
+    if (target.id === user?.id) {
+      setGrantOut('❌ 자기 자신의 권한은 토글할 수 없습니다 (lock-out 방지)')
+      return
+    }
+    const next = !target.is_admin
+    const verb = next ? '부여' : '회수'
+    const name = target.display_name ?? target.id.slice(0, 8)
+    if (!window.confirm(`${name} 에게 관리자 권한을 ${verb}하시겠습니까?`)) return
+
+    setGrantBusyId(target.id)
+    setGrantOut(null)
+    try {
+      // UUID is parameter-safe (validated by DB) — direct interpolation OK.
+      const sql = `update members set is_admin = ${next} where id = '${target.id}' returning id, display_name, is_admin;`
+      const res = await fetch(`${(supabase as any).supabaseUrl}/functions/v1/admin-run`, {
+        method: 'POST',
+        headers: {
+          'apikey':         (supabase as any).supabaseKey,
+          'Authorization':  `Bearer ${(supabase as any).supabaseKey}`,
+          'x-admin-token':  token,
+          'Content-Type':   'application/json',
+        },
+        body: JSON.stringify({ sql }),
+      })
+      const body = await res.json().catch(() => ({}))
+      if (res.ok) {
+        setGrantOut(`✅ ${name} 권한 ${verb} 완료`)
+        await Promise.all([loadUserList(), loadUserStats()])
+      } else {
+        setGrantOut(`❌ 실패: ${body.error ?? res.status} · ${body.message ?? ''}`)
+      }
+    } catch (e: any) {
+      setGrantOut(`❌ 오류: ${String(e?.message ?? e)}`)
+    } finally {
+      setGrantBusyId(null)
+    }
+  }
+
+  async function handleCreateSeason() {
+    if (!token) { setSeasonOut('관리자 토큰이 필요합니다 · 도구 탭 상단에서 입력'); return }
+    if (!seasonName.trim()) { setSeasonOut('이름을 입력하세요'); return }
+    if (!seasonStart) { setSeasonOut('시작일을 선택하세요'); return }
+    setSeasonBusy(true)
+    setSeasonOut(null)
+    try {
+      const { end_date, applaud_end, graduation_date } = computeSeasonDates(seasonStart)
+      // Single-quote escape for SQL literal — name comes from admin input.
+      const safeName = seasonName.trim().replace(/'/g, "''")
+      const sql = `
+        insert into seasons (name, start_date, end_date, applaud_end, graduation_date, status)
+        values ('${safeName}', '${seasonStart}', '${end_date}', '${applaud_end}', '${graduation_date}', '${seasonStatus}')
+        returning id, name, start_date, end_date, applaud_end, graduation_date, status;
+      `
+      const res = await fetch(`${(supabase as any).supabaseUrl}/functions/v1/admin-run`, {
+        method: 'POST',
+        headers: {
+          'apikey':         (supabase as any).supabaseKey,
+          'Authorization':  `Bearer ${(supabase as any).supabaseKey}`,
+          'x-admin-token':  token,
+          'Content-Type':   'application/json',
+        },
+        body: JSON.stringify({ sql }),
+      })
+      const body = await res.json().catch(() => ({}))
+      if (res.ok) {
+        setSeasonOut(`✅ 생성됨 · ${safeName} (${seasonStart} → ${graduation_date})`)
+        setSeasonName('')
+        setSeasonStart('')
+        await loadSeasons()
+      } else {
+        setSeasonOut(`❌ 실패: ${body.error ?? res.status} · ${body.message ?? ''}`)
+      }
+    } catch (e: any) {
+      setSeasonOut(`❌ 오류: ${String(e?.message ?? e)}`)
+    } finally {
+      setSeasonBusy(false)
+    }
+  }
+
+  async function handleAdvanceSeasonStatus() {
+    setSeasonOut(null)
+    setSeasonBusy(true)
+    try {
+      const { error } = await supabase.rpc('advance_season_status', { p_season_id: null })
+      if (error) {
+        setSeasonOut(`❌ RPC 실패: ${error.message}`)
+      } else {
+        setSeasonOut('✅ advance_season_status 실행 완료')
+        await loadSeasons()
+      }
+    } finally {
+      setSeasonBusy(false)
+    }
+  }
+
   function saveToken() {
     if (!tokenInput) return
     localStorage.setItem(ADMIN_TOKEN_KEY, tokenInput)
@@ -263,8 +416,8 @@ export function AdminPage() {
   if (!user) {
     return (
       <Centered>
-        <div className="font-display text-xl mb-2" style={{ color: 'var(--cream)' }}>로그인 필요</div>
-        <p className="text-sm mb-4" style={{ color: 'var(--text-primary)' }}>관리자 콘솔은 로그인된 관리자 전용입니다.</p>
+        <div className="font-display text-xl mb-2" style={{ color: '#fff' }}>로그인 필요</div>
+        <p className="text-sm mb-4" style={{ color: 'rgba(255,255,255,0.88)' }}>관리자 콘솔은 로그인된 관리자 전용입니다.</p>
         <button onClick={() => navigate('/')} className="font-mono text-xs px-4 py-2"
                 style={{ background: 'var(--gold-500)', color: 'var(--navy-900)', border: 'none', borderRadius: '2px' }}>
           홈으로
@@ -275,8 +428,8 @@ export function AdminPage() {
   if (!isAdmin) {
     return (
       <Centered>
-        <div className="font-display text-xl mb-2" style={{ color: 'var(--cream)' }}>권한 없음</div>
-        <p className="text-sm mb-4" style={{ color: 'var(--text-primary)' }}>이 계정은 관리자 권한이 없습니다.</p>
+        <div className="font-display text-xl mb-2" style={{ color: '#fff' }}>권한 없음</div>
+        <p className="text-sm mb-4" style={{ color: 'rgba(255,255,255,0.88)' }}>이 계정은 관리자 권한이 없습니다.</p>
         <button onClick={() => navigate('/')} className="font-mono text-xs px-4 py-2"
                 style={{ background: 'var(--gold-500)', color: 'var(--navy-900)', border: 'none', borderRadius: '2px' }}>
           홈으로
@@ -286,16 +439,16 @@ export function AdminPage() {
   }
 
   return (
-    <section className="relative z-10 pt-20 pb-16 px-4 md:px-6 lg:px-8 min-h-screen">
+    <section className="admin-shell relative z-10 pt-20 pb-16 px-4 md:px-6 lg:px-8 min-h-screen">
       <div className="max-w-7xl mx-auto">
         <header className="mb-6">
           <div className="font-mono text-xs tracking-widest mb-2" style={{ color: 'var(--gold-500)' }}>
             // 관리자 콘솔
           </div>
-          <h1 className="font-display font-black text-3xl md:text-4xl" style={{ color: 'var(--cream)' }}>
+          <h1 className="font-display font-black text-3xl md:text-4xl" style={{ color: '#fff' }}>
             commit.show 운영 대시보드
           </h1>
-          <p className="font-light text-sm mt-1" style={{ color: 'var(--text-primary)' }}>
+          <p className="font-light text-sm mt-1" style={{ color: 'rgba(255,255,255,0.88)' }}>
             로그인 계정: {user.email} · is_admin: <span style={{ color: 'var(--gold-500)' }}>true</span>
           </p>
         </header>
@@ -315,7 +468,7 @@ export function AdminPage() {
               className="font-mono text-xs tracking-widest uppercase px-4 py-2 whitespace-nowrap"
               style={{
                 background:    tab === k ? 'rgba(240,192,64,0.14)' : 'transparent',
-                color:         tab === k ? 'var(--gold-500)'        : 'var(--text-primary)',
+                color:         tab === k ? 'var(--gold-500)'        : 'rgba(255,255,255,0.88)',
                 borderBottom:  tab === k ? '2px solid var(--gold-500)' : '2px solid transparent',
                 cursor: 'pointer',
                 border: 'none',
@@ -332,8 +485,8 @@ export function AdminPage() {
           </div>
         )}
 
-        {tab === 'overview' && <Overview userStats={userStats} auditStats={auditStats} cliUsage={cliUsage} />}
-        {tab === 'users'    && <UsersTab stats={userStats} list={userList} />}
+        {tab === 'overview' && <Overview userStats={userStats} auditStats={auditStats} cliUsage={cliUsage} onNavigate={setTab} />}
+        {tab === 'users'    && <UsersTab stats={userStats} list={userList} currentUserId={user.id} onToggleAdmin={handleToggleAdmin} grantBusyId={grantBusyId} grantOut={grantOut} hasToken={!!token} />}
         {tab === 'audits'   && <AuditsTab stats={auditStats} recent={recent} onForceRefresh={handleForceRefresh} refreshing={refreshing} refreshOut={refreshOut} />}
         {tab === 'cli'      && <CliTab usage={cliUsage} />}
         {tab === 'tools'    && (
@@ -347,6 +500,17 @@ export function AdminPage() {
             onForceRefresh={() => handleForceRefresh(refreshUrl)}
             refreshing={refreshing}
             refreshOut={refreshOut}
+            seasons={seasons}
+            seasonName={seasonName}
+            setSeasonName={setSeasonName}
+            seasonStart={seasonStart}
+            setSeasonStart={setSeasonStart}
+            seasonStatus={seasonStatus}
+            setSeasonStatus={setSeasonStatus}
+            onCreateSeason={handleCreateSeason}
+            onAdvanceSeason={handleAdvanceSeasonStatus}
+            seasonBusy={seasonBusy}
+            seasonOut={seasonOut}
           />
         )}
       </div>
@@ -356,23 +520,41 @@ export function AdminPage() {
 
 // ── 탭 컴포넌트들 ─────────────────────────────────────────
 
-function Overview({ userStats, auditStats, cliUsage }: {
-  userStats: UserStats | null; auditStats: AuditStats | null; cliUsage: CliUsage | null
+function Overview({ userStats, auditStats, cliUsage, onNavigate }: {
+  userStats: UserStats | null
+  auditStats: AuditStats | null
+  cliUsage: CliUsage | null
+  onNavigate: (tab: 'users' | 'audits' | 'cli' | 'tools') => void
 }) {
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-      <Stat label="총 사용자"        value={userStats?.total ?? '—'}        sub={`최근 7일 신규 ${userStats?.newWeek ?? 0}`} />
-      <Stat label="활성 사용자 (7일)" value={userStats?.activeWeek ?? '—'} sub={`관리자 ${userStats?.admins ?? 0}명`} />
-      <Stat label="오늘 Audit"       value={auditStats?.todayCount ?? '—'} sub={`주간 ${auditStats?.weekCount ?? 0} · 평균 ${auditStats?.avgScore ?? '—'}점`} />
-      <Stat label="실패 (24h)"       value={auditStats?.failed24h ?? '—'}  sub={auditStats?.failed24h ? '에러 envelope 발생' : '문제 없음'} tone={(auditStats?.failed24h ?? 0) > 0 ? 'warn' : 'ok'} />
-      <Stat label="CLI 호출 (오늘)"  value={cliUsage?.totalToday ?? '—'}    sub={`고유 IP ${cliUsage?.uniqueIps ?? 0}`} />
-      <Stat label="Walk-on 프로젝트" value={auditStats?.cliPreviewCnt ?? '—'} sub="status=preview · 최근 7일" />
-      <Stat label="Global quota 남음" value={cliUsage?.globalRemaining ?? '—'} sub="800/일" />
+      <Stat label="총 사용자"        value={userStats?.total ?? '—'}        sub={`최근 7일 신규 ${userStats?.newWeek ?? 0}`}
+            onClick={() => onNavigate('users')}  hint="사용자 리스트로 이동" />
+      <Stat label="활성 사용자 (7일)" value={userStats?.activeWeek ?? '—'} sub={`관리자 ${userStats?.admins ?? 0}명`}
+            onClick={() => onNavigate('users')}  hint="사용자 리스트로 이동" />
+      <Stat label="오늘 Audit"       value={auditStats?.todayCount ?? '—'} sub={`주간 ${auditStats?.weekCount ?? 0} · 평균 ${auditStats?.avgScore ?? '—'}점`}
+            onClick={() => onNavigate('audits')} hint="Audit 탭으로 이동" />
+      <Stat label="실패 (24h)"       value={auditStats?.failed24h ?? '—'}  sub={auditStats?.failed24h ? '에러 envelope 발생' : '문제 없음'} tone={(auditStats?.failed24h ?? 0) > 0 ? 'warn' : 'ok'}
+            onClick={() => onNavigate('audits')} hint="Audit 탭으로 이동" />
+      <Stat label="CLI 호출 (오늘)"  value={cliUsage?.totalToday ?? '—'}    sub={`고유 IP ${cliUsage?.uniqueIps ?? 0}`}
+            onClick={() => onNavigate('cli')}    hint="CLI 사용 탭으로 이동" />
+      <Stat label="Walk-on 프로젝트" value={auditStats?.cliPreviewCnt ?? '—'} sub="status=preview · 최근 7일"
+            onClick={() => onNavigate('audits')} hint="Audit 탭으로 이동" />
+      <Stat label="Global quota 남음" value={cliUsage?.globalRemaining ?? '—'} sub="800/일"
+            onClick={() => onNavigate('cli')}    hint="CLI 사용 탭으로 이동" />
     </div>
   )
 }
 
-function UsersTab({ stats, list }: { stats: UserStats | null; list: UserRow[] }) {
+function UsersTab({ stats, list, currentUserId, onToggleAdmin, grantBusyId, grantOut, hasToken }: {
+  stats: UserStats | null
+  list: UserRow[]
+  currentUserId: string
+  onToggleAdmin: (target: UserRow) => void
+  grantBusyId: string | null
+  grantOut: string | null
+  hasToken: boolean
+}) {
   if (!stats) return <Loading />
   const tiers = Object.entries(stats.byTier).sort((a, b) => b[1] - a[1])
   return (
@@ -383,12 +565,18 @@ function UsersTab({ stats, list }: { stats: UserStats | null; list: UserRow[] })
         <Stat label="활성 (7일)"     value={stats.activeWeek} sub="" />
       </div>
 
+      {grantOut && (
+        <div className="p-3 font-mono text-xs" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#fff' }}>
+          {grantOut}
+        </div>
+      )}
+
       <div>
         <div className="font-mono text-xs tracking-widest mb-3" style={{ color: 'var(--gold-500)' }}>// SCOUT 티어 분포</div>
         <div className="space-y-2">
           {tiers.map(([tier, count]) => (
             <div key={tier} className="flex items-center gap-3">
-              <span className="font-mono text-xs uppercase" style={{ width: '6em', color: 'var(--text-label)' }}>{tier}</span>
+              <span className="font-mono text-xs uppercase" style={{ width: '6em', color: 'rgba(255,255,255,0.55)' }}>{tier}</span>
               <div className="flex-1 h-5" style={{ background: 'rgba(255,255,255,0.05)', borderRadius: '2px' }}>
                 <div style={{
                   width: `${Math.min(100, (count / stats.total) * 100)}%`,
@@ -397,7 +585,7 @@ function UsersTab({ stats, list }: { stats: UserStats | null; list: UserRow[] })
                   borderRadius: '2px',
                 }} />
               </div>
-              <span className="font-mono text-xs tabular-nums" style={{ width: '4em', textAlign: 'right', color: 'var(--cream)' }}>{count}</span>
+              <span className="font-mono text-xs tabular-nums" style={{ width: '4em', textAlign: 'right', color: '#fff' }}>{count}</span>
             </div>
           ))}
         </div>
@@ -408,8 +596,8 @@ function UsersTab({ stats, list }: { stats: UserStats | null; list: UserRow[] })
           // 사용자 리스트 · 최근 가입 50명
         </div>
         <div style={{ border: '1px solid rgba(255,255,255,0.08)', borderRadius: '2px', overflow: 'hidden' }}>
-          <div className="grid grid-cols-[1fr_minmax(0,1fr)_80px_70px_70px_50px_90px] gap-3 px-3 py-2 font-mono text-[10px] tracking-widest uppercase"
-               style={{ background: 'rgba(255,255,255,0.04)', color: 'var(--text-label)' }}>
+          <div className="grid grid-cols-[1fr_minmax(0,1fr)_70px_70px_60px_50px_70px_90px] gap-3 px-3 py-2 font-mono text-[10px] tracking-widest uppercase"
+               style={{ background: 'rgba(255,255,255,0.04)', color: 'rgba(255,255,255,0.55)' }}>
             <span>이름</span>
             <span className="hidden sm:block">ID</span>
             <span>티어</span>
@@ -417,31 +605,60 @@ function UsersTab({ stats, list }: { stats: UserStats | null; list: UserRow[] })
             <span className="text-right">AP</span>
             <span className="text-right">졸업</span>
             <span>가입</span>
+            <span className="text-right">권한</span>
           </div>
           {list.length === 0 && (
-            <div className="px-3 py-4 font-mono text-xs text-center" style={{ color: 'var(--text-primary)' }}>(아직 사용자 없음)</div>
+            <div className="px-3 py-4 font-mono text-xs text-center" style={{ color: 'rgba(255,255,255,0.88)' }}>(아직 사용자 없음)</div>
           )}
-          {list.map((u, i) => (
-            <div key={u.id}
-                 className="grid grid-cols-[1fr_minmax(0,1fr)_80px_70px_70px_50px_90px] gap-3 px-3 py-2 items-center text-xs"
-                 style={{
-                   background:    u.is_admin ? 'rgba(240,192,64,0.08)' : i % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'transparent',
-                   borderTop:     '1px solid rgba(255,255,255,0.04)',
-                 }}>
-              <span className="font-mono truncate" style={{ color: 'var(--cream)' }}>
-                {u.display_name ?? '(미설정)'}
-                {u.is_admin && <span className="ml-2 px-1.5 py-0.5" style={{ background: 'rgba(240,192,64,0.2)', color: 'var(--gold-500)', borderRadius: '2px', fontSize: '10px' }}>ADMIN</span>}
-              </span>
-              <span className="hidden sm:block font-mono text-[10px] truncate" style={{ color: 'var(--text-label)' }}>{u.id.slice(0, 8)}</span>
-              <span className="font-mono text-[11px]" style={{ color: 'var(--text-primary)' }}>{u.tier ?? '—'}</span>
-              <span className="font-mono text-[11px]" style={{ color: 'var(--text-primary)' }}>{u.creator_grade ?? '—'}</span>
-              <span className="font-mono text-[11px] tabular-nums text-right" style={{ color: 'var(--cream)' }}>{u.activity_points ?? 0}</span>
-              <span className="font-mono text-[11px] tabular-nums text-right" style={{ color: 'var(--cream)' }}>{u.total_graduated ?? 0}</span>
-              <span className="font-mono text-[10px]" style={{ color: 'var(--text-label)' }}>
-                {new Date(u.created_at).toLocaleDateString('ko-KR', { month: 'numeric', day: 'numeric' })}
-              </span>
-            </div>
-          ))}
+          {list.map((u, i) => {
+            const isSelf = u.id === currentUserId
+            const busy   = grantBusyId === u.id
+            const disabled = busy || isSelf || !hasToken
+            return (
+              <div key={u.id}
+                   className="grid grid-cols-[1fr_minmax(0,1fr)_70px_70px_60px_50px_70px_90px] gap-3 px-3 py-2 items-center text-xs"
+                   style={{
+                     background:    u.is_admin ? 'rgba(240,192,64,0.08)' : i % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'transparent',
+                     borderTop:     '1px solid rgba(255,255,255,0.04)',
+                   }}>
+                <span className="font-mono truncate" style={{ color: '#fff' }}>
+                  {u.display_name ?? '(미설정)'}
+                  {u.is_admin && <span className="ml-2 px-1.5 py-0.5" style={{ background: 'rgba(240,192,64,0.2)', color: 'var(--gold-500)', borderRadius: '2px', fontSize: '10px' }}>ADMIN</span>}
+                  {isSelf && <span className="ml-2 px-1.5 py-0.5" style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.55)', borderRadius: '2px', fontSize: '10px' }}>본인</span>}
+                </span>
+                <span className="hidden sm:block font-mono text-[10px] truncate" style={{ color: 'rgba(255,255,255,0.55)' }}>{u.id.slice(0, 8)}</span>
+                <span className="font-mono text-[11px]" style={{ color: 'rgba(255,255,255,0.88)' }}>{u.tier ?? '—'}</span>
+                <span className="font-mono text-[11px]" style={{ color: 'rgba(255,255,255,0.88)' }}>{u.creator_grade ?? '—'}</span>
+                <span className="font-mono text-[11px] tabular-nums text-right" style={{ color: '#fff' }}>{u.activity_points ?? 0}</span>
+                <span className="font-mono text-[11px] tabular-nums text-right" style={{ color: '#fff' }}>{u.total_graduated ?? 0}</span>
+                <span className="font-mono text-[10px]" style={{ color: 'rgba(255,255,255,0.55)' }}>
+                  {new Date(u.created_at).toLocaleDateString('ko-KR', { month: 'numeric', day: 'numeric' })}
+                </span>
+                <button
+                  onClick={() => onToggleAdmin(u)}
+                  disabled={disabled}
+                  className="font-mono text-[10px] tracking-wide px-2 py-1"
+                  title={
+                    isSelf       ? '자기 자신은 토글 불가 (lock-out 방지)'
+                    : !hasToken  ? '도구 탭에서 관리자 토큰을 먼저 저장하세요'
+                    : u.is_admin ? '관리자 권한 회수'
+                                 : '관리자 권한 부여'
+                  }
+                  style={{
+                    background:  u.is_admin ? 'transparent'                : 'var(--gold-500)',
+                    color:       u.is_admin ? 'var(--scarlet)'             : 'var(--navy-900)',
+                    border:      u.is_admin ? '1px solid rgba(200,16,46,0.4)' : 'none',
+                    borderRadius: '2px',
+                    cursor:      disabled ? 'not-allowed' : 'pointer',
+                    opacity:     disabled ? 0.4 : 1,
+                    whiteSpace:  'nowrap',
+                  }}
+                >
+                  {busy ? '…' : u.is_admin ? '회수' : '부여'}
+                </button>
+              </div>
+            )
+          })}
         </div>
       </div>
     </div>
@@ -466,7 +683,7 @@ function AuditsTab({ stats, recent, onForceRefresh, refreshing, refreshOut }: {
       </div>
 
       {refreshOut && (
-        <div className="p-3 font-mono text-xs" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: 'var(--cream)' }}>
+        <div className="p-3 font-mono text-xs" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#fff' }}>
           {refreshOut}
         </div>
       )}
@@ -474,7 +691,7 @@ function AuditsTab({ stats, recent, onForceRefresh, refreshing, refreshOut }: {
       <div>
         <div className="font-mono text-xs tracking-widest mb-3" style={{ color: 'var(--gold-500)' }}>// 최근 30 audit</div>
         <div className="space-y-1">
-          {recent.length === 0 && <div className="font-mono text-xs" style={{ color: 'var(--text-label)' }}>(빈 결과)</div>}
+          {recent.length === 0 && <div className="font-mono text-xs" style={{ color: 'rgba(255,255,255,0.55)' }}>(빈 결과)</div>}
           {recent.map(r => (
             <div key={r.id} className="grid grid-cols-[1fr_auto_auto_auto_auto] gap-3 items-center px-3 py-2 text-xs" style={{
               background: r.has_error ? 'rgba(200,16,46,0.06)' : 'rgba(255,255,255,0.02)',
@@ -482,15 +699,15 @@ function AuditsTab({ stats, recent, onForceRefresh, refreshing, refreshOut }: {
               borderRadius: '2px',
             }}>
               <div className="min-w-0">
-                <div className="font-mono truncate" style={{ color: 'var(--cream)' }}>
+                <div className="font-mono truncate" style={{ color: '#fff' }}>
                   {r.project_name}
                   {r.has_error && <span className="ml-2" style={{ color: 'var(--scarlet)' }}>· 에러: {r.error_msg}</span>}
                 </div>
-                <div className="font-mono text-[10px] truncate" style={{ color: 'var(--text-label)' }}>{r.github_url ?? ''}</div>
+                <div className="font-mono text-[10px] truncate" style={{ color: 'rgba(255,255,255,0.55)' }}>{r.github_url ?? ''}</div>
               </div>
-              <span className="font-mono tabular-nums" style={{ color: r.has_error ? 'var(--scarlet)' : 'var(--cream)' }}>{r.score_total}</span>
-              <span className="font-mono text-[10px]" style={{ color: 'var(--text-label)' }}>{r.trigger_type}</span>
-              <span className="font-mono text-[10px]" style={{ color: 'var(--text-label)' }}>{new Date(r.created_at).toLocaleString('ko-KR', { hour: '2-digit', minute: '2-digit', month: 'numeric', day: 'numeric' })}</span>
+              <span className="font-mono tabular-nums" style={{ color: r.has_error ? 'var(--scarlet)' : '#fff' }}>{r.score_total}</span>
+              <span className="font-mono text-[10px]" style={{ color: 'rgba(255,255,255,0.55)' }}>{r.trigger_type}</span>
+              <span className="font-mono text-[10px]" style={{ color: 'rgba(255,255,255,0.55)' }}>{new Date(r.created_at).toLocaleString('ko-KR', { hour: '2-digit', minute: '2-digit', month: 'numeric', day: 'numeric' })}</span>
               <button
                 disabled={refreshing || !r.github_url}
                 onClick={() => r.github_url && onForceRefresh(r.github_url)}
@@ -524,19 +741,19 @@ function CliTab({ usage }: { usage: CliUsage | null }) {
       <div>
         <div className="font-mono text-xs tracking-widest mb-3" style={{ color: 'var(--gold-500)' }}>// 가장 자주 audit 된 repo (오늘)</div>
         <div className="space-y-1">
-          {usage.topRepos.length === 0 && <div className="font-mono text-xs" style={{ color: 'var(--text-label)' }}>(아직 없음)</div>}
+          {usage.topRepos.length === 0 && <div className="font-mono text-xs" style={{ color: 'rgba(255,255,255,0.55)' }}>(아직 없음)</div>}
           {usage.topRepos.map((r, i) => (
             <div key={i} className="flex items-center gap-3 px-3 py-2 text-xs" style={{
               background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.04)',
               borderRadius: '2px',
             }}>
-              <span className="font-mono tabular-nums" style={{ color: 'var(--text-label)', width: '3em' }}>#{i + 1}</span>
-              <span className="font-mono truncate flex-1" style={{ color: 'var(--cream)' }}>url 해시: {r.url}</span>
+              <span className="font-mono tabular-nums" style={{ color: 'rgba(255,255,255,0.55)', width: '3em' }}>#{i + 1}</span>
+              <span className="font-mono truncate flex-1" style={{ color: '#fff' }}>url 해시: {r.url}</span>
               <span className="font-mono tabular-nums" style={{ color: 'var(--gold-500)' }}>{r.count}회</span>
             </div>
           ))}
         </div>
-        <div className="font-mono text-[11px] mt-2" style={{ color: 'var(--text-label)' }}>
+        <div className="font-mono text-[11px] mt-2" style={{ color: 'rgba(255,255,255,0.55)' }}>
           ※ url 은 djb2 해시로 익명화 저장 (원본 URL 비노출)
         </div>
       </div>
@@ -547,16 +764,26 @@ function CliTab({ usage }: { usage: CliUsage | null }) {
 function ToolsTab({
   token, tokenInput, setTokenInput, saveToken,
   refreshUrl, setRefreshUrl, onForceRefresh, refreshing, refreshOut,
+  seasons, seasonName, setSeasonName, seasonStart, setSeasonStart,
+  seasonStatus, setSeasonStatus, onCreateSeason, onAdvanceSeason,
+  seasonBusy, seasonOut,
 }: {
   token: string; tokenInput: string; setTokenInput: (s: string) => void; saveToken: () => void
   refreshUrl: string; setRefreshUrl: (s: string) => void
   onForceRefresh: () => void; refreshing: boolean; refreshOut: string | null
+  seasons: SeasonRow[]
+  seasonName: string; setSeasonName: (s: string) => void
+  seasonStart: string; setSeasonStart: (s: string) => void
+  seasonStatus: 'upcoming' | 'active'; setSeasonStatus: (s: 'upcoming' | 'active') => void
+  onCreateSeason: () => void; onAdvanceSeason: () => void
+  seasonBusy: boolean; seasonOut: string | null
 }) {
+  const computed = seasonStart ? computeSeasonDates(seasonStart) : null
   return (
     <div className="space-y-8">
       <section>
         <div className="font-mono text-xs tracking-widest mb-3" style={{ color: 'var(--gold-500)' }}>// 관리자 토큰</div>
-        <p className="font-light text-sm mb-3" style={{ color: 'var(--text-primary)' }}>
+        <p className="font-light text-sm mb-3" style={{ color: 'rgba(255,255,255,0.88)' }}>
           ADMIN_TOKEN (Supabase secret 으로 설정된 값) — 강제 재감사·rate limit 우회용. 토큰은 localStorage 에 저장되며 이 브라우저에만 유지됩니다.
         </p>
         <div className="flex items-center gap-2">
@@ -566,21 +793,21 @@ function ToolsTab({
             value={tokenInput}
             onChange={e => setTokenInput(e.target.value)}
             className="flex-1 px-3 py-2 font-mono text-xs"
-            style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', color: 'var(--cream)', borderRadius: '2px' }}
+            style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', borderRadius: '2px' }}
           />
           <button onClick={saveToken} className="font-mono text-xs px-4 py-2"
                   style={{ background: 'var(--gold-500)', color: 'var(--navy-900)', border: 'none', borderRadius: '2px', cursor: 'pointer' }}>
             저장
           </button>
         </div>
-        <div className="font-mono text-[11px] mt-2" style={{ color: 'var(--text-label)' }}>
+        <div className="font-mono text-[11px] mt-2" style={{ color: 'rgba(255,255,255,0.55)' }}>
           현재 상태: {token ? '✅ 저장됨' : '⚠ 미저장 — 강제 재감사 사용 불가'}
         </div>
       </section>
 
       <section>
         <div className="font-mono text-xs tracking-widest mb-3" style={{ color: 'var(--gold-500)' }}>// 강제 재감사</div>
-        <p className="font-light text-sm mb-3" style={{ color: 'var(--text-primary)' }}>
+        <p className="font-light text-sm mb-3" style={{ color: 'rgba(255,255,255,0.88)' }}>
           rate limit 을 우회하고 새 audit 을 트리거. URL cap / IP cap / global cap 모두 무시됩니다.
         </p>
         <div className="flex items-center gap-2">
@@ -590,7 +817,7 @@ function ToolsTab({
             value={refreshUrl}
             onChange={e => setRefreshUrl(e.target.value)}
             className="flex-1 px-3 py-2 font-mono text-xs"
-            style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', color: 'var(--cream)', borderRadius: '2px' }}
+            style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', borderRadius: '2px' }}
           />
           <button
             onClick={onForceRefresh}
@@ -607,8 +834,124 @@ function ToolsTab({
           </button>
         </div>
         {refreshOut && (
-          <div className="mt-3 p-3 font-mono text-xs" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: 'var(--cream)' }}>
+          <div className="mt-3 p-3 font-mono text-xs" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#fff' }}>
             {refreshOut}
+          </div>
+        )}
+      </section>
+
+      <section>
+        <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+          <div className="font-mono text-xs tracking-widest" style={{ color: 'var(--gold-500)' }}>// 시즌 관리</div>
+          <button
+            onClick={onAdvanceSeason}
+            disabled={seasonBusy}
+            className="font-mono text-[11px] tracking-wide px-3 py-1.5"
+            style={{
+              background: 'transparent', color: 'rgba(255,255,255,0.88)',
+              border: '1px solid rgba(255,255,255,0.15)', borderRadius: '2px',
+              cursor: seasonBusy ? 'not-allowed' : 'pointer',
+            }}
+            title="advance_season_status() RPC 실행 — upcoming→active, active→applaud, applaud→completed"
+          >
+            상태 자동 전환 실행
+          </button>
+        </div>
+        <p className="font-light text-sm mb-3" style={{ color: 'rgba(255,255,255,0.88)' }}>
+          새 시즌 row 를 생성합니다. 시작일을 정하면 종료/Applaud/졸업일이 CLAUDE.md §11.2 기준 (Day 21 / 28 / 29) 으로 자동 계산됩니다.
+          상태는 보통 <code style={{ color: 'var(--gold-500)' }}>upcoming</code> 으로 두고 시작일 도래 후 "상태 자동 전환" 으로 active 로 진행합니다.
+        </p>
+
+        {/* 기존 시즌 리스트 */}
+        <div className="mb-4" style={{ border: '1px solid rgba(255,255,255,0.08)', borderRadius: '2px', overflow: 'hidden' }}>
+          <div className="grid grid-cols-[1fr_90px_90px_90px_90px_90px] gap-2 px-3 py-2 font-mono text-[10px] tracking-widest uppercase"
+               style={{ background: 'rgba(255,255,255,0.04)', color: 'rgba(255,255,255,0.55)' }}>
+            <span>이름</span>
+            <span>시작</span>
+            <span>종료(D21)</span>
+            <span>Applaud(D28)</span>
+            <span>졸업(D29)</span>
+            <span>상태</span>
+          </div>
+          {seasons.length === 0 && (
+            <div className="px-3 py-4 font-mono text-xs text-center" style={{ color: 'rgba(255,255,255,0.88)' }}>(시즌 없음)</div>
+          )}
+          {seasons.map((s, i) => (
+            <div key={s.id}
+                 className="grid grid-cols-[1fr_90px_90px_90px_90px_90px] gap-2 px-3 py-2 items-center text-xs"
+                 style={{
+                   background: i % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'transparent',
+                   borderTop:  '1px solid rgba(255,255,255,0.04)',
+                 }}>
+              <span className="font-mono truncate" style={{ color: '#fff' }}>{s.name}</span>
+              <span className="font-mono text-[11px] tabular-nums" style={{ color: 'rgba(255,255,255,0.88)' }}>{s.start_date}</span>
+              <span className="font-mono text-[11px] tabular-nums" style={{ color: 'rgba(255,255,255,0.88)' }}>{s.end_date}</span>
+              <span className="font-mono text-[11px] tabular-nums" style={{ color: 'rgba(255,255,255,0.88)' }}>{s.applaud_end}</span>
+              <span className="font-mono text-[11px] tabular-nums" style={{ color: 'rgba(255,255,255,0.88)' }}>{s.graduation_date}</span>
+              <span className="font-mono text-[11px] uppercase tracking-wide" style={{ color: STATUS_COLORS[s.status] ?? 'rgba(255,255,255,0.55)' }}>{s.status}</span>
+            </div>
+          ))}
+        </div>
+
+        {/* 생성 폼 */}
+        <div className="p-4" style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '2px' }}>
+          <div className="font-mono text-[10px] tracking-widest uppercase mb-3" style={{ color: 'rgba(255,255,255,0.55)' }}>새 시즌 생성</div>
+          <div className="grid grid-cols-1 sm:grid-cols-[1fr_180px_140px] gap-2 mb-3">
+            <input
+              type="text"
+              placeholder="이름 (예: season_one)"
+              value={seasonName}
+              onChange={e => setSeasonName(e.target.value)}
+              className="px-3 py-2 font-mono text-xs"
+              style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', borderRadius: '2px' }}
+            />
+            <input
+              type="date"
+              value={seasonStart}
+              onChange={e => setSeasonStart(e.target.value)}
+              className="px-3 py-2 font-mono text-xs"
+              style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', borderRadius: '2px', colorScheme: 'dark' }}
+            />
+            <select
+              value={seasonStatus}
+              onChange={e => setSeasonStatus(e.target.value as 'upcoming' | 'active')}
+              className="px-3 py-2 font-mono text-xs"
+              style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', borderRadius: '2px' }}
+            >
+              <option value="upcoming">upcoming</option>
+              <option value="active">active (즉시)</option>
+            </select>
+          </div>
+
+          {computed && (
+            <div className="mb-3 px-3 py-2 font-mono text-[11px]" style={{ background: 'rgba(240,192,64,0.06)', border: '1px solid rgba(240,192,64,0.2)', borderRadius: '2px', color: 'rgba(255,255,255,0.88)' }}>
+              자동 계산: 종료 <span style={{ color: '#fff' }}>{computed.end_date}</span> ·
+              Applaud 종료 <span style={{ color: '#fff' }}>{computed.applaud_end}</span> ·
+              졸업일 <span style={{ color: '#fff' }}>{computed.graduation_date}</span>
+            </div>
+          )}
+
+          <button
+            onClick={onCreateSeason}
+            disabled={seasonBusy || !seasonName || !seasonStart || !token}
+            className="font-mono text-xs px-4 py-2"
+            style={{
+              background: 'var(--gold-500)', color: 'var(--navy-900)',
+              border: 'none', borderRadius: '2px',
+              cursor: seasonBusy || !seasonName || !seasonStart || !token ? 'not-allowed' : 'pointer',
+              opacity: seasonBusy || !seasonName || !seasonStart || !token ? 0.4 : 1,
+            }}
+          >
+            {seasonBusy ? '진행중…' : '시즌 생성'}
+          </button>
+          {!token && (
+            <span className="ml-3 font-mono text-[11px]" style={{ color: 'var(--scarlet)' }}>※ 관리자 토큰 미저장</span>
+          )}
+        </div>
+
+        {seasonOut && (
+          <div className="mt-3 p-3 font-mono text-xs" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#fff' }}>
+            {seasonOut}
           </div>
         )}
       </section>
@@ -616,26 +959,56 @@ function ToolsTab({
   )
 }
 
-function Stat({ label, value, sub, tone }: {
-  label: string; value: number | string; sub: string; tone?: 'ok' | 'warn'
+function Stat({ label, value, sub, tone, onClick, hint }: {
+  label: string
+  value: number | string
+  sub: string
+  tone?: 'ok' | 'warn'
+  onClick?: () => void
+  hint?: string
 }) {
-  const valColor = tone === 'warn' ? 'var(--scarlet)' : tone === 'ok' ? '#00D4AA' : 'var(--cream)'
+  const valColor = tone === 'warn' ? 'var(--scarlet)' : tone === 'ok' ? '#00D4AA' : '#fff'
+  const interactive = !!onClick
   return (
-    <div className="card-navy p-4" style={{ borderRadius: '2px' }}>
-      <div className="font-mono text-[10px] tracking-widest uppercase" style={{ color: 'var(--text-label)' }}>{label}</div>
-      <div className="font-display font-bold text-2xl mt-1" style={{ color: valColor }}>{value}</div>
-      {sub && <div className="font-mono text-[10px] mt-1" style={{ color: 'var(--text-primary)' }}>{sub}</div>}
-    </div>
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={!interactive}
+      title={hint}
+      className="text-left p-4 transition-all"
+      style={{
+        background:    'rgba(255,255,255,0.03)',
+        border:        '1px solid rgba(255,255,255,0.08)',
+        borderRadius:  '2px',
+        cursor:        interactive ? 'pointer' : 'default',
+        color:         'inherit',
+      }}
+      onMouseEnter={interactive ? e => {
+        e.currentTarget.style.borderColor = 'rgba(240,192,64,0.45)'
+        e.currentTarget.style.background  = 'rgba(255,255,255,0.05)'
+      } : undefined}
+      onMouseLeave={interactive ? e => {
+        e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'
+        e.currentTarget.style.background  = 'rgba(255,255,255,0.03)'
+      } : undefined}
+    >
+      <div className="text-[11px] tracking-widest uppercase" style={{ color: 'rgba(255,255,255,0.6)', fontWeight: 500 }}>{label}</div>
+      <div className="font-bold text-2xl mt-1" style={{ color: valColor }}>{value}</div>
+      {sub && <div className="text-[11px] mt-1" style={{ color: 'rgba(255,255,255,0.75)' }}>{sub}</div>}
+      {interactive && hint && (
+        <div className="text-[10px] mt-2" style={{ color: 'rgba(240,192,64,0.7)' }}>{hint} →</div>
+      )}
+    </button>
   )
 }
 
 function Loading() {
-  return <div className="font-mono text-xs py-8 text-center" style={{ color: 'var(--text-label)' }}>로딩 중…</div>
+  return <div className="font-mono text-xs py-8 text-center" style={{ color: 'rgba(255,255,255,0.55)' }}>로딩 중…</div>
 }
 
 function Centered({ children }: { children: React.ReactNode }) {
   return (
-    <section className="relative z-10 pt-32 pb-16 px-4 min-h-screen text-center">
+    <section className="admin-shell relative z-10 pt-32 pb-16 px-4 min-h-screen text-center">
       <div className="max-w-md mx-auto">{children}</div>
     </section>
   )

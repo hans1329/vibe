@@ -88,7 +88,7 @@ export function ProjectPreviewModal({ project: p, onClose, creator: creatorProp,
 
           {/* Thumbnail hero */}
           {p.thumbnail_url ? (
-            <div className="relative" style={{ aspectRatio: '16 / 9', overflow: 'hidden', background: 'var(--navy-800)' }}>
+            <div className="relative" style={{ aspectRatio: '1200 / 630', overflow: 'hidden', background: 'var(--navy-800)' }}>
               <img src={p.thumbnail_url} alt="" decoding="async" className="w-full h-full" style={{ objectFit: 'cover' }} />
               <span className="absolute top-3 left-3 font-mono text-[10px] tracking-widest uppercase px-2 py-0.5" style={{
                 background: 'rgba(6,12,26,0.75)',
@@ -101,7 +101,7 @@ export function ProjectPreviewModal({ project: p, onClose, creator: creatorProp,
               </span>
             </div>
           ) : (
-            <div className="flex items-center justify-center font-mono text-xs" style={{ aspectRatio: '16 / 9', background: 'var(--navy-800)', color: 'var(--text-faint)' }}>
+            <div className="flex items-center justify-center font-mono text-xs" style={{ aspectRatio: '1200 / 630', background: 'var(--navy-800)', color: 'var(--text-faint)' }}>
               NO IMAGE
             </div>
           )}

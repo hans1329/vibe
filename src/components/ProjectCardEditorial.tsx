@@ -55,8 +55,8 @@ export function ProjectCardEditorial({
       onMouseEnter={e => (e.currentTarget.style.borderColor = 'rgba(240,192,64,0.35)')}
       onMouseLeave={e => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.06)')}
     >
-      {/* Image · 3:2 · hero-first emphasis */}
-      <div className="relative" style={{ aspectRatio: '3 / 2', overflow: 'hidden', background: 'var(--navy-800)' }}>
+      {/* Image · OG 1.91:1 · hero-first emphasis */}
+      <div className="relative" style={{ aspectRatio: '1200 / 630', overflow: 'hidden', background: 'var(--navy-800)' }}>
         {p.thumbnail_url ? (
           <img
             src={p.thumbnail_url}

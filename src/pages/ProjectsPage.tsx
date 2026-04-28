@@ -33,60 +33,61 @@ export function ProjectsPage() {
   return (
     <section className="relative z-10 pt-16 pb-12 px-4 md:px-6 lg:px-8 min-h-screen">
       <div className="max-w-7xl mx-auto">
-        {/* ── Compact top strip · Season · stats · Apply ── */}
-        <div className="flex items-center justify-between gap-3 flex-wrap py-3 mb-4" style={{
+        {/* ── Compact top strip · Season · stats · Apply ──
+            Mobile stacks: SeasonProgress on its own row, then stats + MAP VIEW
+            share one row (stats left, MAP VIEW right). Desktop keeps the
+            single-row layout via md:flex-row + md:justify-between. */}
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 md:gap-3 py-3 mb-4" style={{
           borderBottom: '1px solid rgba(240,192,64,0.12)',
         }}>
-          <div className="flex items-center gap-3 flex-wrap min-w-0">
-            <SeasonProgressBar variant="compact" />
+          <SeasonProgressBar variant="compact" />
+
+          <div className="flex items-center justify-between gap-3 w-full md:w-auto md:flex-1 md:justify-end">
             {summary && (
-              <>
-                <span style={{ color: 'rgba(255,255,255,0.12)' }}>·</span>
-                <div className="flex items-center gap-3 font-mono text-xs">
-                  <span style={{ color: 'var(--text-secondary)' }}>
-                    <span style={{ color: 'var(--cream)' }}>{summary.total}</span> auditioning
-                  </span>
-                  <span style={{ color: 'var(--text-secondary)' }}>
-                    <span style={{ color: '#F0C040' }}>{summary.active}</span> live
-                  </span>
-                  <span style={{ color: 'var(--text-secondary)' }}>
-                    <span style={{ color: '#00D4AA' }}>{summary.graduated}</span> grad
-                  </span>
-                </div>
-              </>
+              <div className="flex items-center gap-3 font-mono text-xs min-w-0">
+                <span style={{ color: 'var(--text-secondary)' }}>
+                  <span style={{ color: 'var(--cream)' }}>{summary.total}</span> auditioning
+                </span>
+                <span style={{ color: 'var(--text-secondary)' }}>
+                  <span style={{ color: '#F0C040' }}>{summary.active}</span> live
+                </span>
+                <span style={{ color: 'var(--text-secondary)' }}>
+                  <span style={{ color: '#00D4AA' }}>{summary.graduated}</span> grad
+                </span>
+              </div>
             )}
-          </div>
-          <div className="flex items-center gap-2 flex-shrink-0">
-            <NavLink
-              to="/leaderboard"
-              className="font-mono text-[11px] tracking-wide px-3 py-1.5"
-              style={{
-                background: 'transparent',
-                color: 'var(--text-secondary)',
-                border: '1px solid rgba(255,255,255,0.12)',
-                borderRadius: '2px',
-                textDecoration: 'none',
-              }}
-              onMouseEnter={e => {
-                e.currentTarget.style.borderColor = 'rgba(240,192,64,0.5)'
-                e.currentTarget.style.color = 'var(--gold-500)'
-              }}
-              onMouseLeave={e => {
-                e.currentTarget.style.borderColor = 'rgba(255,255,255,0.12)'
-                e.currentTarget.style.color = 'var(--text-secondary)'
-              }}
-            >
-              MAP VIEW →
-            </NavLink>
-            {!user && (
+            <div className="flex items-center gap-2 flex-shrink-0">
               <NavLink
-                to="/submit"
-                className="font-mono text-[11px] font-medium tracking-wide px-3 py-1.5"
-                style={{ background: 'var(--gold-500)', color: 'var(--navy-900)', border: 'none', borderRadius: '2px', textDecoration: 'none' }}
+                to="/leaderboard"
+                className="font-mono text-[11px] tracking-wide px-3 py-1.5 whitespace-nowrap"
+                style={{
+                  background: 'transparent',
+                  color: 'var(--text-secondary)',
+                  border: '1px solid rgba(255,255,255,0.12)',
+                  borderRadius: '2px',
+                  textDecoration: 'none',
+                }}
+                onMouseEnter={e => {
+                  e.currentTarget.style.borderColor = 'rgba(240,192,64,0.5)'
+                  e.currentTarget.style.color = 'var(--gold-500)'
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.borderColor = 'rgba(255,255,255,0.12)'
+                  e.currentTarget.style.color = 'var(--text-secondary)'
+                }}
               >
-                AUDITION →
+                MAP VIEW →
               </NavLink>
-            )}
+              {!user && (
+                <NavLink
+                  to="/submit"
+                  className="font-mono text-[11px] font-medium tracking-wide px-3 py-1.5 whitespace-nowrap"
+                  style={{ background: 'var(--gold-500)', color: 'var(--navy-900)', border: 'none', borderRadius: '2px', textDecoration: 'none' }}
+                >
+                  AUDITION →
+                </NavLink>
+              )}
+            </div>
           </div>
         </div>
 

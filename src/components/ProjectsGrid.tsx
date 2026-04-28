@@ -70,7 +70,7 @@ export function ProjectsGrid({ filters, onTotal }: Props) {
           border: '1px solid rgba(255,255,255,0.06)',
           borderRadius: '2px',
         }}>
-          <div style={{ aspectRatio: '3 / 2', background: 'rgba(255,255,255,0.02)' }} />
+          <div style={{ aspectRatio: '1200 / 630', background: 'rgba(255,255,255,0.02)' }} />
           <div className="px-6 pt-5 pb-6">
             <div className="h-2.5 w-1/3 mb-4" style={{ background: 'rgba(240,192,64,0.15)', borderRadius: '2px' }} />
             <div className="h-5 w-5/6 mb-2" style={{ background: 'rgba(255,255,255,0.07)', borderRadius: '2px' }} />

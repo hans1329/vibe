@@ -2,7 +2,8 @@
 //
 // Two presets share the same pipeline (resize → WebP encode → size-cap retry
 // → upload to a user-scoped folder):
-//   - Thumbnail (projects): 16:10-ish, 1200×800 max, 512KB cap, .webp
+//   - Thumbnail (projects): OG / Open Graph 1.91:1, 1200×630 max, 512KB cap, .webp
+//                           (matches og:image · X large summary · LinkedIn preview)
 //   - Avatar (members):     square 256×256, 256KB cap, .webp
 //
 // The storage buckets (`project-thumbnails` · `member-avatars`) both enforce
@@ -25,7 +26,7 @@ export interface ImagePreset {
 export const THUMBNAIL_PRESET: ImagePreset = {
   bucket:    'project-thumbnails',
   maxWidth:  1200,
-  maxHeight: 800,
+  maxHeight: 630,       // OG / Open Graph 1.91:1
   maxBytes:  524_288,   // 512 KB
   square:    false,
   quality:   0.85,

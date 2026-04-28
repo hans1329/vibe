@@ -114,9 +114,12 @@ export function ProjectImagesPicker({ value, onChange, max = MAX_IMAGES_DEFAULT,
       )}
 
       <div className="mt-2 font-mono text-[11px]" style={{ color: 'var(--text-muted)', lineHeight: 1.6 }}>
+        Recommended size <strong style={{ color: 'var(--cream)' }}>1200 × 630</strong> · OG / Open Graph 1.91:1 ratio
+        (same proportion used by feed cards, X large summary, LinkedIn preview).
         Up to <strong style={{ color: 'var(--cream)' }}>{max}</strong> images · JPG / PNG / WebP / GIF up to 8MB each.
-        The first image is your <strong style={{ color: 'var(--gold-500)' }}>primary thumbnail</strong> (shows on
-        the feed and on graduation cards). We resize to max 1200×800 and convert to WebP automatically.
+        The first image is your <strong style={{ color: 'var(--gold-500)' }}>primary thumbnail</strong>; we resize to
+        max 1200×630 and convert to WebP automatically — anything off-ratio gets letterboxed by the cards, so design
+        for 1200×630 if you can.
         {required && value.length === 0 && (
           <> · <span style={{ color: 'var(--scarlet)' }}>At least one image is required to audition.</span></>
         )}
@@ -158,7 +161,7 @@ function ImageSlot({
           src={img.url}
           alt={`Project image ${index + 1}`}
           className="w-full block"
-          style={{ aspectRatio: '3 / 2', objectFit: 'cover', background: 'var(--navy-800)' }}
+          style={{ aspectRatio: '1200 / 630', objectFit: 'cover', background: 'var(--navy-800)' }}
         />
         {isPrimary && (
           <span className="absolute top-2 left-2 font-mono text-[10px] tracking-widest px-1.5 py-0.5" style={{
@@ -215,7 +218,7 @@ function ImageSlot({
       onDrop={onDrop}
       className="flex flex-col items-center justify-center text-center py-8 px-4"
       style={{
-        aspectRatio: '3 / 2',
+        aspectRatio: '1200 / 630',
         border: `1px dashed ${dragOver ? 'var(--gold-500)' : 'rgba(240,192,64,0.3)'}`,
         background: dragOver ? 'rgba(240,192,64,0.06)' : 'rgba(255,255,255,0.015)',
         borderRadius: '2px',

@@ -70,6 +70,78 @@ body::before {
 .font-display { font-family: 'Playfair Display', Georgia, serif; }
 .font-mono { font-family: 'DM Mono', monospace; }
 
+/* ── Admin console scope · Pretendard + white default text ──
+   Scoped to .admin-shell so the rest of the site keeps its Ivy League type
+   system. !important wins over component-level inline `style={{ color }}`
+   so we don't have to scrub every existing rgba() literal. Functional
+   accents (gold CTA, scarlet errors, status pills) opt back in via
+   `data-accent` styling at the component level. */
+.admin-shell,
+.admin-shell * {
+  font-family: 'Pretendard Variable', 'Pretendard', system-ui, -apple-system, sans-serif !important;
+}
+.admin-shell { color: #ffffff; }
+
+/* ── Hero background orbs · subtle warm/cool blobs ──
+   Two large radial gradients with heavy blur · slow drift. The contained
+   `.hero-orbs` wrapper sits behind hero content (z-index -1) and never
+   intercepts pointer events. Heavy blur means the orbs read as ambient
+   color tint rather than discrete shapes. Reduced-motion users get the
+   blobs without animation. */
+.hero-orbs {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: -1;
+}
+.hero-orb {
+  position: absolute;
+  display: block;
+  border-radius: 9999px;
+  filter: blur(90px);
+  opacity: 0.45;
+  will-change: transform;
+}
+.hero-orb-gold {
+  width:  46vw;
+  height: 46vw;
+  max-width:  680px;
+  max-height: 680px;
+  top:  -8vw;
+  left: -10vw;
+  background: radial-gradient(circle at center,
+    rgba(240,192,64,0.35) 0%,
+    rgba(240,192,64,0.18) 35%,
+    rgba(240,192,64,0)    70%);
+  animation: hero-orb-drift-a 22s ease-in-out infinite;
+}
+.hero-orb-indigo {
+  width:  52vw;
+  height: 52vw;
+  max-width:  760px;
+  max-height: 760px;
+  bottom: -12vw;
+  right:  -12vw;
+  background: radial-gradient(circle at center,
+    rgba(120,108,220,0.32) 0%,
+    rgba(80,72,180,0.18)   38%,
+    rgba(60,40,160,0)      72%);
+  animation: hero-orb-drift-b 28s ease-in-out infinite;
+}
+@keyframes hero-orb-drift-a {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50%      { transform: translate3d(4vw, 3vw, 0) scale(1.06); }
+}
+@keyframes hero-orb-drift-b {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50%      { transform: translate3d(-3vw, -4vw, 0) scale(1.08); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hero-orb-gold,
+  .hero-orb-indigo { animation: none; }
+}
+
 /* ── Gold shimmer effect ── */
 .gold-shimmer {
   background: linear-gradient(

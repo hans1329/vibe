@@ -132,7 +132,7 @@ function MoverCard({ rank, mover }: { rank: number; mover: TopMover }) {
       }}
     >
       {mover.thumbnailUrl && (
-        <div style={{ aspectRatio: '3 / 2', background: 'var(--navy-800)', overflow: 'hidden' }}>
+        <div style={{ aspectRatio: '1200 / 630', background: 'var(--navy-800)', overflow: 'hidden' }}>
           <img
             src={mover.thumbnailUrl}
             alt=""

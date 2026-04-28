@@ -56,8 +56,8 @@ export function ProjectCardCompact({
       onMouseEnter={e => (e.currentTarget.style.borderColor = 'rgba(240,192,64,0.35)')}
       onMouseLeave={e => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.06)')}
     >
-      {/* Thumbnail strip · fixed 16:9, no text overlay to keep room */}
-      <div className="relative" style={{ aspectRatio: '16 / 10', overflow: 'hidden', background: 'var(--navy-800)' }}>
+      {/* Thumbnail strip · OG 1.91:1, no text overlay to keep room */}
+      <div className="relative" style={{ aspectRatio: '1200 / 630', overflow: 'hidden', background: 'var(--navy-800)' }}>
         {p.thumbnail_url ? (
           <img
             src={p.thumbnail_url}

@@ -56,7 +56,7 @@ export function FeaturedLaneCard({ project: p, accent, hideScore, creator }: Fea
     >
       {/* Image region — pure visual, no text overlay or gradient.
           Badges (grade + accent) sit on top with their own backdrop chip. */}
-      <div className="relative overflow-hidden" style={{ aspectRatio: '16 / 10', background: 'var(--navy-800)' }}>
+      <div className="relative overflow-hidden" style={{ aspectRatio: '1200 / 630', background: 'var(--navy-800)' }}>
         {p.thumbnail_url ? (
           <img
             src={p.thumbnail_url}

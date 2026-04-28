@@ -223,7 +223,7 @@ export function ProjectDetailPage() {
             </button>
           )}
           <div className="grid grid-cols-1 md:grid-cols-[260px_1fr]">
-            <div style={{ aspectRatio: '3 / 2', background: 'var(--navy-800)', overflow: 'hidden' }}>
+            <div style={{ aspectRatio: '1200 / 630', background: 'var(--navy-800)', overflow: 'hidden' }}>
               {project.thumbnail_url ? (
                 <img src={project.thumbnail_url} alt="" className="w-full h-full" style={{ objectFit: 'cover' }} />
               ) : (
@@ -382,7 +382,7 @@ export function ProjectDetailPage() {
                     style={{
                       border: '1px solid rgba(255,255,255,0.08)',
                       borderRadius: '2px',
-                      aspectRatio: '3 / 2',
+                      aspectRatio: '1200 / 630',
                       background: 'var(--navy-800)',
                     }}
                     onMouseEnter={e => (e.currentTarget.style.borderColor = 'rgba(240,192,64,0.4)')}

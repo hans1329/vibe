@@ -90,7 +90,7 @@ export function Nav() {
   const voteColor = remaining === 0 ? 'var(--text-muted)' : tierColor
 
   const linkStyle = (active: boolean) => ({
-    color: active ? 'var(--gold-500)' : 'rgba(248,245,238,0.5)',
+    color: 'var(--cream)',
     background: 'none',
     border: 'none',
     textDecoration: 'none',

@@ -101,7 +101,7 @@ export function ThumbnailPicker({ value, onChange, required = false }: Thumbnail
             src={displayUrl}
             alt="Thumbnail preview"
             className="w-full block"
-            style={{ aspectRatio: '3 / 2', objectFit: 'cover', background: 'var(--navy-800)' }}
+            style={{ aspectRatio: '1200 / 630', objectFit: 'cover', background: 'var(--navy-800)' }}
           />
           <div className="absolute top-2 right-2 flex gap-2">
             <button
@@ -152,10 +152,11 @@ export function ThumbnailPicker({ value, onChange, required = false }: Thumbnail
             {busy ? (processing ? 'CONVERTING TO WEBP…' : 'UPLOADING…') : 'DROP IMAGE OR CLICK TO UPLOAD'}
           </div>
           <div className="font-light text-sm" style={{ color: 'rgba(248,245,238,0.55)', lineHeight: 1.6 }}>
-            A hero screenshot or logo. JPG / PNG / WebP / GIF up to 8MB.
+            A hero screenshot or logo · recommended <strong style={{ color: 'var(--cream)' }}>1200 × 630</strong> (OG 1.91:1).
+            JPG / PNG / WebP / GIF up to 8MB.
             <br />
             <span className="font-mono text-xs" style={{ color: 'rgba(248,245,238,0.35)' }}>
-              We resize to max 1200×800 and convert to WebP automatically.
+              We resize to max 1200×630 and convert to WebP automatically.
             </span>
           </div>
         </div>
