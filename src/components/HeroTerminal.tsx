@@ -282,17 +282,26 @@ function LineRow({
     // Plain monospace ASCII · no shadow / glow / extrusion. Fixed-integer
     // fontSize keeps the grid tight on wide screens (sub-pixel drift was
     // the breakage we hit at clamp() midpoints).
+    //
+    // letterSpacing 0.25em adds visible gap BETWEEN constituent block
+    // chars within each digit so adjacent '█▀▄' boxes don't visually
+    // fuse into one solid blob. The spacing applies uniformly to all
+    // characters in the row (digit blocks + inter-digit spaces) so the
+    // monospace grid stays aligned. lineHeight 1.2 gives matching
+    // vertical breathing room between rows so each digit reads as a
+    // collection of distinct boxes rather than a packed silhouette.
     return (
-      <div className="text-center" style={{ margin: '0.5em 0' }}>
+      <div className="text-center" style={{ margin: '0.6em 0' }}>
         {rows.map((row, i) => (
           <div
             key={i}
             style={{
-              color:       '#D4A838',
-              fontSize:    '16px',
-              lineHeight:  1.05,
-              whiteSpace:  'pre',
-              fontWeight:  700,
+              color:         '#D4A838',
+              fontSize:      '16px',
+              lineHeight:    1.2,
+              letterSpacing: '0.25em',
+              whiteSpace:    'pre',
+              fontWeight:    700,
             }}
           >
             {row}
