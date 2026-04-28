@@ -51,13 +51,18 @@ const BIG_DIGITS: Record<string, string[]> = {
   ' ': ['     ', '     ', '     ', '     ', '     '],
 }
 
-/** Render a string ("68", "100", "82/100") as 5 rows of big ASCII. */
+/** Render a string ("68", "100", "82/100") as 5 rows of big ASCII.
+ *  Uses 2-space gutters between glyphs (was 1) so adjacent block-char
+ *  digits don't visually fuse — terminals render block runes at a width
+ *  that often makes the 1-char gap collapse, especially for digits like
+ *  '5' / '0' / '8' whose outer column is full block. */
 function bigText(text: string): string[] {
   const rows = ['', '', '', '', '']
+  const GAP = '  '   // 2-space gutter between digits
   for (let i = 0; i < text.length; i++) {
     const ch = text[i]
     const glyph = BIG_DIGITS[ch] ?? BIG_DIGITS[' ']
-    for (let r = 0; r < 5; r++) rows[r] += glyph[r] + (i < text.length - 1 ? ' ' : '')
+    for (let r = 0; r < 5; r++) rows[r] += glyph[r] + (i < text.length - 1 ? GAP : '')
   }
   return rows
 }
