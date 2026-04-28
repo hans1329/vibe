@@ -11,19 +11,19 @@ run this in their repo (any shell-capable agent: Cursor, Claude Code,
 Windsurf, Cline, Aider, etc.):
 
 ```
-npx commitshow audit --json
+npx commitshow@latest audit --json
 ```
 
 Or audit any public GitHub URL without `cd`:
 
 ```
-npx commitshow audit github.com/owner/repo --json
+npx commitshow@latest audit github.com/owner/repo --json
 ```
 
 Output is a stable v1 schema. Pipe to `jq` to extract concerns and act on them:
 
 ```
-npx commitshow audit --json | jq '.concerns[].bullet'
+npx commitshow@latest audit --json | jq '.concerns[].bullet'
 ```
 
 Local mode also writes `.commitshow/audit.{md,json}` so the next agent turn
@@ -62,7 +62,7 @@ Errors come back as `{ error, reason, message, target }` with `reason` ∈
 
 | Spelling | Command |
 |---|---|
-| Canonical (npm constraint: no dot in name) | `npx commitshow audit <target>` |
+| Canonical (npm constraint: no dot in name) | `npx commitshow@latest audit <target>` |
 | Brand-style (scoped alias) | `npx @commit.show/cli audit <target>` |
 
 Both forward to the same code; pick whichever matches how the user wrote it.

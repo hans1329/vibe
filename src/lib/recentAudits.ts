@@ -1,17 +1,20 @@
-// useRecentAudits — fetches recent walk-on audits for the CLI demo
-// section so the hero terminal cycles through REAL recent results
-// instead of hardcoded shadcn-ui/ui content.
+// useRecentAudits — fetches the **highest-scoring audits across the
+// platform** (any status, any time) for the CLI demo section so the hero
+// terminal cycles through proven projects rather than time-windowed recency.
+// Name kept for backwards compatibility — pool semantics changed.
 //
-// Why: a static demo can feel like marketing copy. Cycling through actual
-// recent audits proves the platform is alive ("47 audits in the last
-// week, here's what they look like").
+// Why score-ranked instead of time-ranked: a 7-day recency window often
+// produced a tiny pool (or all walk-ons of dubious quality). Ranking by
+// score puts our strongest evaluations on the front page — which is what
+// a vibe-coder actually wants to see ("here's what an 84 looks like").
 //
 // Pool query:
-//   - status = 'preview' (walk-ons only · matches CLI form factor)
-//   - score_total >= 70 (demo-quality floor · "strong" or near-strong)
-//   - last_analysis_at within 7 days
-//   - has scout_brief.strengths[] and weaknesses[] (renderable content)
+//   - score_total >= 70  (demo-quality floor — "strong" or near-strong)
+//   - has scout_brief.strengths[] (>= 2) and weaknesses[] (>= 1) so
+//     the rendered transcript reads as a real audit
 //   - project_name length <= 24 (won't break terminal width)
+//   - status: any (walk-ons + auditioning + graduated · all auditable)
+//   - order by score_total DESC, take top 13 after dedupe by project_id
 //
 // Falls back to a hardcoded shadcn-ui/ui demo if the pool is empty,
 // API fails, or RLS blocks the read. The HeroTerminal component owns
@@ -90,21 +93,20 @@ export async function fetchRecentAuditDemos(): Promise<AuditDemo[]> {
       projects!inner(project_name, github_url, status)
     `)
     .gte('score_total', 70)
-    .gte('created_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString())
-    .order('created_at', { ascending: false })
-    .limit(50)                                              // bumped · we dedupe below
+    .order('score_total', { ascending: false })
+    .limit(80)                                              // wider — dedupe + brief gates trim it
   if (error || !data) return []
 
-  // Dedupe by project_id keeping the FIRST encountered (= latest snapshot
-  // per project, since query is ordered created_at DESC). Without this,
-  // a project audited 5 times in a row showed up 5 times in the rotation
-  // with each snapshot's score (e.g. supabase cycling 76/84/76/80/82).
+  // Dedupe by project_id keeping the FIRST encountered (= top-scoring
+  // snapshot per project, since query is ordered score_total DESC).
+  // Without this, a project audited 5 times in a row showed up 5 times in
+  // the rotation with each snapshot's score (e.g. supabase 76/84/76/80/82).
   const seenProjects = new Set<string>()
   const demos: AuditDemo[] = []
   for (const raw of data as unknown as RawSnapshot[]) {
     if (seenProjects.has(raw.project_id)) continue
     const proj = raw.projects
-    if (!proj || proj.status !== 'preview')              continue
+    if (!proj)                                            continue
     if (!proj.project_name || proj.project_name.length > 24) continue
 
     const slug = slugFromGithub(proj.github_url)
@@ -127,7 +129,7 @@ export async function fetchRecentAuditDemos(): Promise<AuditDemo[]> {
       strengths,
       concerns,
     })
-    if (demos.length >= 6) break
+    if (demos.length >= 13) break                           // top-13 leaderboard
   }
 
   memoCache = { ts: Date.now(), demos }

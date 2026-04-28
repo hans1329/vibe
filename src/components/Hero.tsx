@@ -132,7 +132,7 @@ export function Hero(_props: HeroProps) {
             // LIVE FROM YOUR TERMINAL
           </div>
           <p className="font-light text-sm mb-5 text-center lg:text-left" style={{ color: 'rgba(248,245,238,0.55)' }}>
-            <span className="font-mono" style={{ color: 'var(--gold-500)' }}>npx commitshow audit</span>
+            <span className="font-mono" style={{ color: 'var(--gold-500)' }}>npx commitshow@latest audit</span>
             {' '}on any GitHub repo. Score in 60 seconds.
           </p>
           <HeroTerminal />

@@ -17,16 +17,16 @@ The npm package + command is `commitshow` (no dot — npm doesn't allow it in
 package names). Everything else uses the brand `commit.show`.
 
 ```bash
-npx commitshow audit
+npx commitshow@latest audit
 # or audit any public project by URL — no cd required
-npx commitshow audit github.com/owner/repo
+npx commitshow@latest audit github.com/owner/repo
 ```
 
 ## Install
 
 ```bash
 # one-shot
-npx commitshow audit <target>
+npx commitshow@latest audit <target>
 
 # or global
 npm i -g commitshow
@@ -59,7 +59,7 @@ Node 20+.
 | Shorthand | `commitshow audit owner/repo` |
 
 Remote-URL mode works from any directory, which makes one-line X posts
-(`npx commitshow audit <their-url>`) trivial.
+(`npx commitshow@latest audit <their-url>`) trivial.
 
 ## The AI-coding loop
 

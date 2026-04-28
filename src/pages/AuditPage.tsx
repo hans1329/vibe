@@ -271,7 +271,7 @@ function AuditPageContent() {
           </P>
           <Table
             rows={[
-              ['Walk-on',  'CLI · `npx commitshow audit` · status="preview"', 'Audit-only score, normalized to /47 (52 hard - 5 brief slot inaccessible). Scout + Community pillars structurally absent — shown as "audition unlocks". Score derived deterministically from score_auto, no Claude qualitative override.'],
+              ['Walk-on',  'CLI · `npx commitshow@latest audit` · status="preview"', 'Audit-only score, normalized to /47 (52 hard - 5 brief slot inaccessible). Scout + Community pillars structurally absent — shown as "audition unlocks". Score derived deterministically from score_auto, no Claude qualitative override.'],
               ['League',   'Auditioned project · status="active" · brief filled', 'Full 50 + 30 + 20 = 100. Claude reads all evidence, calibrates a final score with bonuses + deductions per the SCORE FORMATION rules. Brief Integrity slot accessible.'],
             ]}
           />
@@ -310,7 +310,7 @@ function AuditPageContent() {
 
         <Section title="12 · CLI integration" anchor="cli">
           <P>
-            The CLI is the walk-on lane. <code>npx commitshow audit
+            The CLI is the walk-on lane. <code>npx commitshow@latest audit
             github.com/&lt;owner&gt;/&lt;repo&gt;</code> hits the same engine
             with the same scoring math.
           </P>

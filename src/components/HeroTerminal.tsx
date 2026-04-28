@@ -77,7 +77,7 @@ function sequenceForDemo(d: AuditDemo): Line[] {
   const filled = Math.round(ratio * FILL_CELLS)
   const bar = '▰'.repeat(filled) + '▱'.repeat(FILL_CELLS - filled)
   return [
-    { kind: 'prompt', text: `npx commitshow audit github.com/${d.slug}` },
+    { kind: 'prompt', text: `npx commitshow@latest audit github.com/${d.slug}` },
     { kind: 'spacer' },
     { kind: 'note',   text: `Refreshing audit for ${d.slug}…` },
     { kind: 'spacer' },
@@ -364,7 +364,7 @@ export function CliDemoSection() {
             One command. Real audit
           </h2>
           <p className="font-light max-w-md mx-auto text-sm md:text-base" style={{ color: 'rgba(248,245,238,0.55)' }}>
-            <span className="font-mono" style={{ color: 'var(--gold-500)' }}>npx commitshow audit</span>
+            <span className="font-mono" style={{ color: 'var(--gold-500)' }}>npx commitshow@latest audit</span>
             {' '}on any GitHub repo. Score in 60 seconds.
           </p>
         </div>

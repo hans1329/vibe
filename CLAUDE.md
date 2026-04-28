@@ -1401,11 +1401,15 @@ Function 호출 (`trigger_type: 'resubmit'`). 24h cooldown 은 그대로 적용 
 - 웹쪽에 `/cli/link` 페이지 하나 추가 필요 (V1.5 런칭 때)
 
 **배포**
-- 주 경로: **`npx commitshow <cmd>`** (Postiz 스타일 · 설치 0 · 바이럴 포스트 쉬움)
+- 주 경로: **`npx commitshow@latest <cmd>`** (Postiz 스타일 · 설치 0 · 바이럴 포스트 쉬움). 마케팅 카피 · README · Hero 의 모든 데모 명령어는 반드시 `@latest` 박아두기 — npx 가 사용자 머신에 캐시한 옛 버전이 영영 안 갱신되는 사례가 있음 (0.2.0 → 0.2.2 사이 발생).
 - 보조: `npm i -g commitshow` (글로벌 · 자주 쓰는 유저용 · `commitshow` 바로 실행)
 - 패키지: `@commitshow/cli` (npm) · 소스는 `packages/cli/` monorepo 서브패스 or 별도 레포 (V1.5 결정)
 - Node 스펙: **Node 20+** · ESM · CommonJS fallback 불필요 (최신 바이브코더 타겟)
 - 크기 목표: < 1 MB 번들 · 의존성은 `kleur`(색) + `ora`(스피너) + `prompts`(인터랙티브) 만. 별도 SDK 없이 `fetch` 로 Supabase REST 직접 호출.
+
+**버전 bump 규율 (2026-04-28 추가)**
+사용자 노출 출력 — render.ts · score 정규화 상수 · `--json` schema · CLI 메시지 — 가 변경되면 **반드시 patch bump + npm publish** 해야 함. 안 그러면 `~/.npm/_npx/` 에 캐시된 옛 빌드를 무한히 재사용하는 사용자가 생김 (예: 0.2.0 publish 후 v3 calibration 되돌렸지만 version 그대로 둬서 npm 의 0.2.0 이 /49 cap 으로 굳음 → 0.2.1 강제 bump 로 해결).
+허용 예외: 내부 typing · 주석 · 테스트 · 빌드 산출물 (사용자 출력 영향 0) 은 bump 없이 merge OK.
 
 ### 15-C.5 Rollout
 
