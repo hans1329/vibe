@@ -264,6 +264,9 @@ export function AnalysisResultCard({
         <div className="font-mono text-xs tracking-widest mb-2" style={{ color: 'var(--gold-500)' }}>// EVALUATION (BASIC)</div>
         <div className="font-display font-black text-5xl mb-2" style={{ color: 'var(--cream)' }}>{result.score_total}</div>
         <div className="font-mono text-xs tracking-wide" style={{ color: 'rgba(248,245,238,0.4)' }}>/ 100</div>
+        <div className="font-light text-[11px] mt-2" style={{ color: 'rgba(248,245,238,0.35)', lineHeight: 1.5, fontStyle: 'italic' }}>
+          It's a snapshot, not a verdict. Code changes; so does this number.
+        </div>
         <p className="mt-6 text-sm font-light" style={{ color: 'rgba(248,245,238,0.6)', lineHeight: 1.7 }}>
           Panel deliberation was unavailable for this submission. Only the automated score components are shown.
         </p>
@@ -368,6 +371,11 @@ export function AnalysisResultCard({
               {scoreDelta === 0
                 ? 'initial snapshot'
                 : `${scoreDelta > 0 ? '+' : ''}${scoreDelta} pts ${scoreDelta > 0 ? 'up' : 'down'} from last analysis`}
+            </div>
+            {/* Snapshot disclaimer · sets expectation that the number is
+                a checkpoint, not a verdict. See /rulebook §10. */}
+            <div className="font-light text-[11px] mt-1.5" style={{ color: 'rgba(248,245,238,0.35)', lineHeight: 1.5, fontStyle: 'italic' }}>
+              It's a snapshot, not a verdict. Code changes; so does this number.
             </div>
           </div>
           {r.headline_metrics.slice(0, 3).map((m, i) => (

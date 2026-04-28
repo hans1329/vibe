@@ -110,6 +110,25 @@ export function GraduationStanding({ projectId, viewerMode = 'visitor' }: Props)
             <TierRow label="Rookie Circle" cutoff="Everyone else · retry next season" active={tier === 'rookie_circle'}   tone={TIER_COLOR.rookie_circle} />
           </div>
 
+          {/* Rookie Circle tone copy · only shown when projected here ·
+              encouraging without being patronizing. Reinforces that
+              audit is iterable and the season cap doesn't define you. */}
+          {tier === 'rookie_circle' && (
+            <div className="mb-5 pl-3 py-3 pr-3" style={{
+              borderLeft: `2px solid ${TIER_COLOR.rookie_circle}`,
+              background: 'rgba(255,255,255,0.02)',
+              color: 'var(--text-primary)',
+              lineHeight: 1.7,
+            }}>
+              <div className="font-display font-bold text-sm mb-1.5" style={{ color: 'var(--cream)' }}>Rookie Circle</div>
+              <div className="font-light text-[13px]">
+                Most great vibe-coded projects spent their first season here.
+                Fix the index, ship the rate-limit, then come back. The audit
+                doesn't care how many tries it takes.
+              </div>
+            </div>
+          )}
+
           {/* Eligibility strip · basic filter (§6.3) */}
           <div className="font-mono text-[10px] tracking-widest mb-2" style={{ color: 'var(--text-muted)' }}>
             ELIGIBILITY FILTER
