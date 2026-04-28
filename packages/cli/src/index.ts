@@ -5,8 +5,9 @@ import { status }  from './commands/status.js'
 import { login }   from './commands/login.js'
 import { whoami }  from './commands/whoami.js'
 import { c } from './lib/colors.js'
+import { checkLatestVersion, formatUpdateBanner } from './lib/version-check.js'
 
-const VERSION = '0.2.0'
+const VERSION = '0.2.10'
 
 const USAGE = `
 ${c.bold(c.gold('commit.show'))} ${c.dim(`v${VERSION}`)}  ${c.muted('—')} ${c.cream('audit any vibe-coded project from your terminal.')}
@@ -44,6 +45,12 @@ ${c.muted('LEARN MORE')}
 
 export async function main(argv: string[]): Promise<void> {
   const [cmd, ...rest] = argv
+  // Background version check · 24h cached · 2s timeout · failure-tolerant.
+  // Runs in parallel with the actual command so a slow npm registry
+  // doesn't gate audit results. Banner prints to stderr (won't pollute
+  // --json stdout) AFTER the command finishes.
+  const isJson = rest.includes('--json')
+  const versionCheck = checkLatestVersion('commitshow', VERSION).catch(() => null)
   let code = 0
   try {
     switch (cmd) {
@@ -69,6 +76,18 @@ export async function main(argv: string[]): Promise<void> {
     const msg = err instanceof Error ? err.message : String(err)
     console.error(c.scarlet(`\n  ${msg}`))
     code = 1
+  }
+  // Print update banner LAST so the audit output stays the focal point.
+  // Skip in --json mode so machine consumers see clean JSON.
+  if (!isJson) {
+    try {
+      const ck = await versionCheck
+      if (ck && ck.outdated) {
+        process.stderr.write(formatUpdateBanner(ck))
+      }
+    } catch {
+      // never block exit on version-check failure
+    }
   }
   process.exit(code)
 }
