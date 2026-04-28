@@ -2727,9 +2727,20 @@ Deno.serve(async (req) => {
   //                       slots like docs cap 7 of an "LH 20" slot · without
   //                       this libraries floated to 100 too easily)
   // The hard cap 52 stays the same; only the walk-on normalize denom shifts.
+  //
+  // WALK_ON_MAX_DISPLAY = 95 (rescale, not cap):
+  //   Walk-on evaluates only the Audit pillar (50pt of the 100pt composite).
+  //   Scout (30) + Community (20) are structurally unevaluated — full 100
+  //   is only achievable via audition (Brief Phase 1/2 + Scout votes +
+  //   Community engagement). We rescale so a perfect walk-on lands at 95,
+  //   preserving the gradient (e.g. 49/50 → 93, 50/50 → 95). The 5pt
+  //   headroom is the audition-only frontier and shows up as 'max 95' in
+  //   captions. This is not a cap (no clamping discontinuity) but a
+  //   formula-level reservation of headroom.
+  const WALK_ON_MAX_DISPLAY = 95
   const walkOnDenom = useWebSlots ? 50 : 48
   const scoreTotal = isCliPreview
-    ? Math.min(100, Math.round((score_auto / walkOnDenom) * 100))
+    ? Math.min(WALK_ON_MAX_DISPLAY, Math.round((score_auto / walkOnDenom) * WALK_ON_MAX_DISPLAY))
     : (claude.score?.current && claude.score.current > 0
         ? Math.round(claude.score.current)
         : score_auto)

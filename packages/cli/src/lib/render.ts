@@ -172,8 +172,10 @@ export function renderAudit(view: AuditView): string {
     lines.push('  ' + ' '.repeat(leftPad) + c.goldDeep(row))
   }
   // Caption · small "/ 100 · band" · band tinted so the signal lives there.
-  // Walk-on track gets an extra middle segment so the score is read in the
-  // right context (88 walk-on ≠ 88 league).
+  // Walk-on track gets an extra middle segment + a sub-line surfacing the
+  // 95 max so users read the score in the right context (88 walk-on ≠ 88
+  // league · perfect walk-on caps at 95 because Scout+Community pillars
+  // structurally unevaluated).
   const band     = total >= 75 ? 'strong' : total >= 50 ? 'mid' : 'weak'
   const bandTone = scoreTone(total)
   const captionVisible = isWalkOn
@@ -183,6 +185,10 @@ export function renderAudit(view: AuditView): string {
   if (isWalkOn) {
     lines.push('  ' + ' '.repeat(capPad)
       + c.muted('/ 100 · ') + c.gold('walk-on') + c.muted(' · ') + bandTone(band))
+    // Sub-caption explaining the 5pt headroom · centered, dim
+    const subVisible = 'audition unlocks final 5 · max walk-on score 95'
+    const subPad     = Math.floor((58 - subVisible.length) / 2)
+    lines.push('  ' + ' '.repeat(subPad) + c.muted(subVisible))
   } else {
     lines.push('  ' + ' '.repeat(capPad) + c.muted('/ 100 · ') + bandTone(band))
   }
