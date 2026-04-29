@@ -1,5 +1,11 @@
 // Season progress — derives the current day/phase of a 3-week season
 // (CLAUDE.md §11). Pure function over season row + today's date.
+//
+// §11-NEW.8 transition · 2026-04-29:
+//   reads now go to `events` (template_type='quarterly'); the local
+//   `Season` shape is reconstructed via `mapEventToSeason()` so callers
+//   don't change. `seasons` table is still dual-written by the admin
+//   season-create flow, but reads are events-first.
 
 import { supabase, type Season, type SeasonStatus } from './supabase'
 
@@ -34,6 +40,49 @@ const MS_PER_DAY = 86_400_000
 
 function daysBetween(a: Date, b: Date): number {
   return Math.floor((b.getTime() - a.getTime()) / MS_PER_DAY)
+}
+
+// events column slice we need to rebuild a Season row.
+type QuarterlyEventRow = {
+  id:                 string
+  name:               string
+  starts_at:          string | null     // timestamptz
+  ends_at:            string | null     // timestamptz · = applaud_end in v3 backfill
+  applaud_end:        string | null     // date (legacy column kept for compat)
+  graduation_date:    string | null     // date (legacy column kept for compat)
+  status:             'draft' | 'live' | 'closed' | 'frozen'
+  graduation_results: Record<string, unknown> | null
+  created_at:         string
+}
+
+const QUARTERLY_SELECT =
+  'id, name, starts_at, ends_at, applaud_end, graduation_date, status, graduation_results, created_at'
+
+// events.status (draft/live/closed/frozen) → seasons.status idiom that the
+// rest of the app speaks. The applaud sub-phase is derived from dates in
+// computeSeasonProgress, not stored at DB level.
+function mapEventStatus(s: QuarterlyEventRow['status']): SeasonStatus {
+  if (s === 'draft')  return 'upcoming'
+  if (s === 'live')   return 'active'
+  if (s === 'closed') return 'completed'
+  if (s === 'frozen') return 'completed'
+  return 'upcoming'
+}
+
+function mapEventToSeason(e: QuarterlyEventRow): Season {
+  const startDate = (e.starts_at ?? '').slice(0, 10)         // YYYY-MM-DD
+  const applaud   = e.applaud_end ?? (e.ends_at ?? '').slice(0, 10)
+  return {
+    id:                  e.id,
+    name:                e.name,
+    start_date:          startDate,
+    end_date:            applaud,                            // legacy alias · same date
+    applaud_end:         applaud,
+    graduation_date:     e.graduation_date ?? applaud,
+    status:              mapEventStatus(e.status),
+    graduation_results:  e.graduation_results,
+    created_at:          e.created_at,
+  }
 }
 
 export function computeSeasonProgress(season: Season, now: Date = new Date()): SeasonProgress {
@@ -104,34 +153,39 @@ export function computeSeasonProgress(season: Season, now: Date = new Date()): S
 }
 
 // Server-side status sync. Safe to call frequently; the DB function is idempotent.
+// Uses the events RPC (advance_event_status) introduced in Migration A;
+// advance_season_status is still around but no longer the canonical name.
 export async function syncActiveSeason(): Promise<Season | null> {
-  await supabase.rpc('advance_season_status', { p_season_id: null })
+  await supabase.rpc('advance_event_status', { p_event_id: null })
   const { data } = await supabase
-    .from('seasons')
-    .select('*')
-    .in('status', ['active', 'applaud'])
-    .order('start_date', { ascending: false })
+    .from('events')
+    .select(QUARTERLY_SELECT)
+    .eq('template_type', 'quarterly')
+    .eq('status', 'live')
+    .order('starts_at', { ascending: false })
     .limit(1)
     .maybeSingle()
-  return (data as Season | null) ?? null
+  return data ? mapEventToSeason(data as QuarterlyEventRow) : null
 }
 
 // Simple convenience: load "the" season we should render for now.
 export async function loadCurrentSeason(): Promise<Season | null> {
   const { data } = await supabase
-    .from('seasons')
-    .select('*')
-    .in('status', ['active', 'applaud'])
-    .order('start_date', { ascending: false })
+    .from('events')
+    .select(QUARTERLY_SELECT)
+    .eq('template_type', 'quarterly')
+    .eq('status', 'live')
+    .order('starts_at', { ascending: false })
     .limit(1)
     .maybeSingle()
-  if (data) return data as Season
-  // Fallback: most recent any-status season
+  if (data) return mapEventToSeason(data as QuarterlyEventRow)
+  // Fallback: most recent quarterly any-status
   const { data: any } = await supabase
-    .from('seasons')
-    .select('*')
-    .order('start_date', { ascending: false })
+    .from('events')
+    .select(QUARTERLY_SELECT)
+    .eq('template_type', 'quarterly')
+    .order('starts_at', { ascending: false })
     .limit(1)
     .maybeSingle()
-  return (any as Season | null) ?? null
+  return any ? mapEventToSeason(any as QuarterlyEventRow) : null
 }

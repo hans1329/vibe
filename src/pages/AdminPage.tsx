@@ -145,12 +145,35 @@ export function AdminPage() {
   }
 
   async function loadSeasons() {
+    // §11-NEW.8 · read from events (template_type='quarterly'). The shape
+    // is mapped back to SeasonRow so the rest of the admin page doesn't
+    // care which table is the source of truth.
     const { data } = await supabase
-      .from('seasons')
-      .select('id, name, start_date, end_date, applaud_end, graduation_date, status')
-      .order('start_date', { ascending: false })
+      .from('events')
+      .select('id, name, starts_at, ends_at, applaud_end, graduation_date, status')
+      .eq('template_type', 'quarterly')
+      .order('starts_at', { ascending: false })
       .limit(10)
-    setSeasons((data ?? []) as SeasonRow[])
+    type EventRow = {
+      id: string; name: string
+      starts_at: string | null; ends_at: string | null
+      applaud_end: string | null; graduation_date: string | null
+      status: 'draft' | 'live' | 'closed' | 'frozen'
+    }
+    const mapped: SeasonRow[] = (data ?? []).map((r: EventRow) => ({
+      id:               r.id,
+      name:             r.name,
+      start_date:       (r.starts_at ?? '').slice(0, 10),
+      end_date:         r.applaud_end ?? (r.ends_at ?? '').slice(0, 10),
+      applaud_end:      r.applaud_end ?? '',
+      graduation_date:  r.graduation_date ?? '',
+      status:
+        r.status === 'draft'  ? 'upcoming'  :
+        r.status === 'live'   ? 'active'    :
+        r.status === 'closed' ? 'completed' :
+        r.status === 'frozen' ? 'completed' : 'upcoming',
+    }))
+    setSeasons(mapped)
   }
 
   async function loadUserList() {
@@ -420,11 +443,11 @@ export function AdminPage() {
     setSeasonOut(null)
     setSeasonBusy(true)
     try {
-      const { error } = await supabase.rpc('advance_season_status', { p_season_id: null })
+      const { error } = await supabase.rpc('advance_event_status', { p_event_id: null })
       if (error) {
         setSeasonOut(`❌ RPC 실패: ${error.message}`)
       } else {
-        setSeasonOut('✅ advance_season_status 실행 완료')
+        setSeasonOut('✅ advance_event_status 실행 완료')
         await loadSeasons()
       }
     } finally {
@@ -882,7 +905,7 @@ function ToolsTab({
               border: '1px solid rgba(255,255,255,0.15)', borderRadius: '2px',
               cursor: seasonBusy ? 'not-allowed' : 'pointer',
             }}
-            title="advance_season_status() RPC 실행 — upcoming→active, active→applaud, applaud→completed"
+            title="advance_event_status() RPC 실행 — draft→live→closed (events table)"
           >
             상태 자동 전환 실행
           </button>

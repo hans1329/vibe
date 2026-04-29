@@ -36,13 +36,16 @@ export class AlreadyForecastedError extends Error {
   constructor() { super('You have already forecasted this project this season.'); this.name = 'AlreadyForecastedError' }
 }
 
-// Fetch the current active season. Falls back to season_zero by name.
+// Fetch the current live quarterly event id. §11-NEW.8 · was: seasons table.
+// events.id == seasons.id (UUID preserved by Migration A), so the foreign
+// keys on votes.season_id keep matching.
 async function resolveActiveSeasonId(): Promise<string | null> {
   const { data } = await supabase
-    .from('seasons')
+    .from('events')
     .select('id')
-    .eq('status', 'active')
-    .order('start_date', { ascending: false })
+    .eq('template_type', 'quarterly')
+    .eq('status', 'live')
+    .order('starts_at', { ascending: false })
     .limit(1)
     .maybeSingle()
   return data?.id ?? null

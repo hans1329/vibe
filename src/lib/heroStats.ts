@@ -47,9 +47,13 @@ export function useHeroStats(): HeroStats {
         supabase.from('members').select('id',  { count: 'exact', head: true }).gte('created_at', weekAgoISO),
         supabase.from('votes').select('id',    { count: 'exact', head: true }),
         supabase.from('votes').select('id',    { count: 'exact', head: true }).gte('created_at', startOfTodayISO),
-        supabase.from('seasons')
-          .select('start_date, end_date, applaud_end, graduation_date, status')
-          .eq('status', 'active')
+        // §11-NEW.8 · read live quarterly event (was: seasons WHERE status='active')
+        supabase.from('events')
+          .select('starts_at, ends_at, applaud_end, graduation_date, status')
+          .eq('template_type', 'quarterly')
+          .eq('status', 'live')
+          .order('starts_at', { ascending: false })
+          .limit(1)
           .maybeSingle(),
       ])
 
@@ -59,12 +63,14 @@ export function useHeroStats(): HeroStats {
       let weekNum: number | null = null
       let seasonPhase: SeasonPhase | null = null
 
+      // events shape: starts_at (timestamptz) + ends_at (timestamptz, =applaud_end)
+      // + applaud_end (date legacy) + graduation_date (date legacy)
       const s = seasonRes?.data as
-        | { start_date: string; end_date: string; applaud_end: string; graduation_date: string }
+        | { starts_at: string | null; ends_at: string | null; applaud_end: string | null; graduation_date: string | null }
         | null
-      if (s) {
-        const start      = new Date(`${s.start_date}T00:00:00`)
-        const end        = new Date(`${s.end_date}T23:59:59`)
+      if (s && s.starts_at && s.applaud_end && s.graduation_date) {
+        const start      = new Date(s.starts_at)
+        const end        = new Date(`${s.applaud_end}T23:59:59`)         // legacy "end_date" alias
         const applaudEnd = new Date(`${s.applaud_end}T23:59:59`)
         const gradDate   = new Date(`${s.graduation_date}T23:59:59`)
 
