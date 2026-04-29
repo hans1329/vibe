@@ -9,7 +9,7 @@ import './index.css'
 // Route-level code splitting. LandingPage stays eager because it's the
 // LCP target; everything else loads on demand so the initial bundle
 // doesn't drag all 16 pages on first visit.
-const ProjectsPage            = lazy(() => import('./pages/ProjectsPage').then(m => ({ default: m.ProjectsPage })))
+// ProjectsPage merged into LadderPage · /projects route now redirects.
 const ProjectDetailPage       = lazy(() => import('./pages/ProjectDetailPage').then(m => ({ default: m.ProjectDetailPage })))
 const SubmitPage              = lazy(() => import('./pages/SubmitPage').then(m => ({ default: m.SubmitPage })))
 const ProfilePage             = lazy(() => import('./pages/ProfilePage').then(m => ({ default: m.ProfilePage })))
@@ -49,7 +49,9 @@ export default function App() {
         <Suspense fallback={<RouteFallback />}>
           <Routes>
           <Route path="/"                 element={<LandingPage />} />
-          <Route path="/projects"         element={<ProjectsPage />} />
+          {/* /projects merged into /ladder (2026-04-30 · single-surface decision).
+              Card view lives at /ladder?view=cards. Direct project URLs unchanged. */}
+          <Route path="/projects"         element={<Navigate to="/ladder?view=cards" replace />} />
           <Route path="/projects/:id"     element={<ProjectDetailPage />} />
           <Route path="/submit"           element={<SubmitPage />} />
           <Route path="/me"               element={<ProfilePage />} />
@@ -83,8 +85,6 @@ export default function App() {
         </div>
         <div className="flex items-center justify-center gap-4 mb-3 font-mono text-xs" style={{ color: 'var(--text-secondary)' }}>
           <a href="/ladder"    style={{ color: 'inherit', textDecoration: 'none' }}>Ladder</a>
-          <span style={{ color: 'rgba(255,255,255,0.15)' }}>·</span>
-          <a href="/projects"  style={{ color: 'inherit', textDecoration: 'none' }}>Projects</a>
           <span style={{ color: 'rgba(255,255,255,0.15)' }}>·</span>
           <a href="/community" style={{ color: 'inherit', textDecoration: 'none' }}>Community</a>
           <span style={{ color: 'rgba(255,255,255,0.15)' }}>·</span>

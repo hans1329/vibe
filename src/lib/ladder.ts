@@ -102,6 +102,46 @@ export async function fetchLadder(
   }))
 }
 
+// Editorial-card view of /ladder · same MV ordering, full Project rows.
+// Two-step: pull ranked project_ids from MV, then a separate query for
+// the full PUBLIC_PROJECT_COLUMNS shape so cards have description,
+// tech_layers, etc. Empty when MV is missing.
+export async function fetchLadderProjects(
+  category: LadderCategory,
+  window:   LadderWindow,
+  limit = 50,
+): Promise<{ project: import('./supabase').Project; rank: number }[]> {
+  const rankCol = RANK_COLUMN[window]
+  const { data: ids, error: idsErr } = await supabase
+    .from('ladder_rankings_mv')
+    .select(`project_id, ${rankCol}`)
+    .eq('category', category)
+    .not(rankCol, 'is', null)
+    .order(rankCol, { ascending: true })
+    .limit(limit)
+  if (idsErr || !ids || ids.length === 0) return []
+
+  const idList = (ids as unknown as Array<{ project_id: string }>).map(r => r.project_id)
+  const { PUBLIC_PROJECT_COLUMNS } = await import('./supabase')
+  const { data: projects } = await supabase
+    .from('projects')
+    .select(PUBLIC_PROJECT_COLUMNS)
+    .in('id', idList)
+  if (!projects) return []
+
+  const rankMap = new Map<string, number>()
+  for (const r of ids as unknown as Array<{ project_id: string; [k: string]: unknown }>) {
+    rankMap.set(r.project_id, r[rankCol] as number)
+  }
+  // Preserve MV order
+  type P = import('./supabase').Project
+  const projectMap = new Map<string, P>((projects as unknown as P[]).map(p => [p.id, p]))
+  return idList
+    .map(id => projectMap.get(id))
+    .filter((p): p is P => !!p)
+    .map(p => ({ project: p, rank: rankMap.get(p.id) ?? 0 }))
+}
+
 // Per-category counts for the chip strip ("SaaS · 47 ranked").
 export async function fetchLadderCounts(window: LadderWindow): Promise<Record<LadderCategory, number>> {
   const rankCol = RANK_COLUMN[window]
