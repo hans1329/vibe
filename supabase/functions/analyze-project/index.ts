@@ -1598,7 +1598,13 @@ function detectBusinessCategory(input: {
     return 'game'
   }
 
-  // 2. AI agent — runtime AI SDK + agent-style description (chat / agent /
+  // 2. SaaS sub-form — OVERRIDES library detection (CLAUDE.md §6.1).
+  //    cal.com / supabase are monorepos that publish library packages but
+  //    the user-visible product is the auth-walled SaaS. Must come before
+  //    the library check below.
+  if (input.isSaas) return 'saas'
+
+  // 3. AI agent — runtime AI SDK + agent-style description (chat / agent /
   //    assistant / RAG). AI tech_layer alone isn't enough — many SaaS
   //    products call AI APIs. Look for agent-style language too.
   const hasAi = layers.has('ai')
@@ -1606,19 +1612,17 @@ function detectBusinessCategory(input: {
     return 'ai_agent'
   }
 
-  // 3. Library — explicit library form factor.
+  // 4. Library — explicit library form factor.
   if (input.formFactor === 'library') return 'library'
 
-  // 4. Tool — CLI / scaffold / template. Includes single-file utilities.
+  // 5. Tool — CLI / scaffold / template. Includes single-file utilities.
   if (input.formFactor === 'cli' || input.formFactor === 'scaffold') return 'tool'
-  if (/\bcli\b|\bcommand[- ]line\b|scaffold|starter|template|boilerplate/.test(blob) && !input.isSaas) {
+  if (/\bcli\b|\bcommand[- ]line\b|scaffold|starter|template|boilerplate/.test(blob)) {
     return 'tool'
   }
 
-  // 5. SaaS — explicit SaaS sub-form (api + db + auth + live URL).
-  if (input.isSaas) return 'saas'
-
-  // 6. App with backend+auth signals → SaaS.
+  // 6. App with backend+auth signals → SaaS (covers projects where the
+  //    is_saas detector missed but the layer signals are clear).
   if (input.formFactor === 'app' && layers.has('backend') && layers.has('database')) {
     if (/\bauth\b|signup|signin|sign-in|login|account|dashboard|billing|subscription/.test(blob)) {
       return 'saas'
@@ -1630,6 +1634,13 @@ function detectBusinessCategory(input: {
 
   // 8. Plain web app utility → tool.
   if (input.formFactor === 'app') return 'tool'
+
+  // 9. Last-resort fallback — when form_factor is unknown but layers hint
+  //    at a published library (frontend-only TS package, no live URL).
+  //    Better than dumping into 'other' which is the misc bucket.
+  if (input.formFactor === 'unknown' && layers.has('frontend') && !layers.has('database')) {
+    return 'library'
+  }
 
   return 'other'
 }
