@@ -884,8 +884,13 @@ async function inspectGitHub(url: string): Promise<GitHubInfo> {
       break
     }
   }
+  // Monorepo-aware: also matches `apps/<x>/app/api/...`,
+  // `packages/<x>/src/api/...`, etc. so cal.com / vercel-ai / supabase-style
+  // workspaces don't get 0 detection just because their API lives one
+  // level deeper than the conventional repo root.
   const has_api_routes = paths.some(p =>
-    /^(app\/api|src\/api|pages\/api|api)\//.test(p) ||
+    /^(?:[^/]+\/)?(app\/api|src\/api|pages\/api|api)\//.test(p) ||
+    /^(?:apps|packages)\/[^/]+\/(app\/api|src\/api|pages\/api|api)\//.test(p) ||
     /^supabase\/functions\//.test(p)
   )
   const rate_limit_lib_effective = rate_limit_lib ?? rate_limit_lib_in_subpkg
@@ -2664,14 +2669,19 @@ Deno.serve(async (req) => {
   // slots so we score on what's verifiable in the repo. form_factor stays
   // available to Claude as evidence in the prompt.
   const isAppForm    = gh.form_factor === 'app' || gh.form_factor === 'unknown'
-  const useWebSlots  = isAppForm && health.ok
-  // SaaS sub-form: app-form + auth-walled product. Lighthouse on a
-  // SaaS lands ONLY on the marketing page (auth gates the actual
-  // product), so slot weights shift: LH ↓, Production Maturity ↑,
-  // Source Hygiene ↑, Live URL Health ↓, NEW Backend Signals slot
-  // (5pt from RLS / webhook / indexes / rate-limit / secrets in
-  // vibe_concerns). Total still sums to 52pt cap.
-  const isSaasForm   = useWebSlots && gh.signals.is_saas
+  // SaaS sub-form OVERRIDES library detection · cal.com / supabase
+  // Studio etc. are monorepos that publish library packages but the
+  // user-visible product is the auth-walled SaaS. When is_saas is
+  // detected (api + db + auth) AND live URL is reachable, treat as
+  // SaaS — Lighthouse only lands on the marketing slice, so slot
+  // weights shift: LH ↓, Production Maturity ↑, Source Hygiene ↑,
+  // Live URL Health ↓, NEW Backend Signals slot (RLS / webhook /
+  // indexes / rate-limit / secrets in vibe_concerns).
+  const isSaasForm   = gh.signals.is_saas && health.ok
+  // useWebSlots true if web app OR SaaS (both want LH/Live signals,
+  // just rescaled differently). Library/CLI/scaffold without is_saas
+  // stay on lib slots.
+  const useWebSlots  = (isAppForm && health.ok) || isSaasForm
 
   const stackHints = [
     brief?.features ?? '',
