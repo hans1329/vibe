@@ -194,6 +194,27 @@ export async function fetchProjectsFiltered(
   return { rows, hasMore, total }
 }
 
+// §11-NEW.1.1 · all-time ladder rank lookup for a batch of projects.
+// Reads ladder_rankings_mv (refreshed every 5min). Returns a Map keyed
+// by project_id for O(1) join from the grid. Empty map when MV is
+// missing or query fails — callers degrade gracefully.
+export async function fetchCategoryRanks(
+  projectIds: string[],
+): Promise<Map<string, number>> {
+  if (projectIds.length === 0) return new Map()
+  const { data } = await supabase
+    .from('ladder_rankings_mv')
+    .select('project_id, rank_all_time')
+    .in('project_id', projectIds)
+  const map = new Map<string, number>()
+  if (data) {
+    for (const r of data as Array<{ project_id: string; rank_all_time: number | null }>) {
+      if (r.rank_all_time != null) map.set(r.project_id, r.rank_all_time)
+    }
+  }
+  return map
+}
+
 // Project detail — single row + its snapshot timeline.
 export async function fetchProjectById(id: string): Promise<Project | null> {
   const { data } = await supabase

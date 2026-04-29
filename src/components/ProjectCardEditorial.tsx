@@ -25,11 +25,15 @@ interface Props {
   hideScore?: boolean
   creator?: CreatorIdentity | null
   applaudCount?: number
+  /** All-time category rank from ladder_rankings_mv. Pass null to hide.
+   * Only shown when the parent surface is sorted by score, otherwise
+   * the rank chip would feel stale next to a Newest sort. */
+  categoryRank?: number | null
   onOpen?: (p: Project) => void
 }
 
 export function ProjectCardEditorial({
-  project: p, delta, hideScore, creator, applaudCount, onOpen,
+  project: p, delta, hideScore, creator, applaudCount, categoryRank, onOpen,
 }: Props) {
   const navigate = useNavigate()
   const handleOpen = () => onOpen ? onOpen(p) : navigate(`/projects/${p.id}`)
@@ -93,11 +97,10 @@ export function ProjectCardEditorial({
             {p.status === 'valedictorian' ? 'Valedictorian' : 'Graduated'}
           </span>
         )}
-        {/* §11-NEW.1.1 ladder category badge · sits opposite the graduation
-            chip when both apply. Hidden for 'other' since that's the misc
-            bucket and adds noise. */}
+        {/* §11-NEW.1.1 ladder category + rank · grouped pill. Category sits
+            on the left, rank ('#3') trails to the right when present. */}
         {p.business_category && p.business_category !== 'other' && (
-          <span className={`absolute ${isGraduated ? 'bottom-3' : 'top-3'} left-3 font-mono text-[10px] tracking-widest uppercase px-2 py-0.5`} style={{
+          <span className={`absolute ${isGraduated ? 'bottom-3' : 'top-3'} left-3 inline-flex items-center gap-1.5 font-mono text-[10px] tracking-widest uppercase px-2 py-0.5`} style={{
             background: 'rgba(15,32,64,0.7)',
             color: 'var(--cream)',
             border: '1px solid rgba(255,255,255,0.15)',
@@ -105,6 +108,9 @@ export function ProjectCardEditorial({
             backdropFilter: 'blur(6px)',
           }}>
             {LADDER_CATEGORY_LABELS[p.business_category]}
+            {categoryRank != null && (
+              <span style={{ color: 'var(--gold-500)' }}>#{categoryRank}</span>
+            )}
           </span>
         )}
       </div>

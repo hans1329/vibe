@@ -4,6 +4,7 @@ import {
   fetchProjectsFiltered,
   fetchCreatorsByIds,
   fetchApplaudCounts,
+  fetchCategoryRanks,
   GRID_PAGE_SIZE,
   type CreatorIdentity,
 } from '../lib/projectQueries'
@@ -20,21 +21,33 @@ export function ProjectsGrid({ filters, onTotal }: Props) {
   const [rows, setRows] = useState<Project[]>([])
   const [creators, setCreators] = useState<Record<string, CreatorIdentity>>({})
   const [applauds, setApplauds] = useState<Record<string, number>>({})
+  // §11-NEW.1.1 all-time category rank · only fetched when sort='score'
+  // (otherwise the rank chip would be misleading next to a Newest sort).
+  const [ranks,    setRanks]    = useState<Map<string, number>>(new Map())
   const [loading, setLoading] = useState(true)
   const [page, setPage] = useState(0)
   const [hasMore, setHasMore] = useState(false)
   const [loadingMore, setLoadingMore] = useState(false)
   const [previewTarget, setPreviewTarget] = useState<Project | null>(null)
 
+  const showRank = filters.sort === 'score'
+
   const hydrateSideData = async (projects: Project[], merge = false) => {
     const creatorIds = projects.map(p => p.creator_id).filter((x): x is string => !!x)
     const projectIds = projects.map(p => p.id)
-    const [creatorMap, applaudMap] = await Promise.all([
+    const [creatorMap, applaudMap, rankMap] = await Promise.all([
       fetchCreatorsByIds(creatorIds),
       fetchApplaudCounts(projectIds),
+      showRank ? fetchCategoryRanks(projectIds) : Promise.resolve(new Map<string, number>()),
     ])
     setCreators(prev => merge ? { ...prev, ...creatorMap } : creatorMap)
     setApplauds(prev => merge ? { ...prev, ...applaudMap } : applaudMap)
+    setRanks(prev => {
+      if (!merge) return rankMap
+      const next = new Map(prev)
+      for (const [k, v] of rankMap) next.set(k, v)
+      return next
+    })
   }
 
   // Reset pagination when filters change.
@@ -48,7 +61,8 @@ export function ProjectsGrid({ filters, onTotal }: Props) {
       await hydrateSideData(rows)
       setLoading(false)
     })
-  }, [filters.search, filters.status, filters.grade, filters.minScore, filters.sort])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filters.search, filters.status, filters.grade, filters.minScore, filters.sort, filters.category])
 
   const loadMore = async () => {
     if (loadingMore || !hasMore) return
@@ -104,6 +118,7 @@ export function ProjectsGrid({ filters, onTotal }: Props) {
             project={p}
             creator={p.creator_id ? creators[p.creator_id] : undefined}
             applaudCount={applauds[p.id] ?? 0}
+            categoryRank={showRank ? ranks.get(p.id) ?? null : null}
             onOpen={setPreviewTarget}
           />
         ))}
