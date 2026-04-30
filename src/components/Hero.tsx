@@ -90,19 +90,10 @@ export function Hero(_props: HeroProps) {
             AI ships fast.<span className="hidden sm:inline">{' '}</span><br className="sm:hidden" />AI also misses things.
           </p>
           <p
-            className="stagger-3 max-w-lg mb-5 font-light"
+            className="stagger-3 max-w-lg mb-10 font-light"
             style={{ color: 'rgba(248,245,238,0.55)', fontSize: '1.05rem', lineHeight: 1.65 }}
           >
             We catch what your prompts forgot — and put your build on stage.
-          </p>
-          {/* Pillars · the 4 quality axes. The detailed 7-frame list lives
-              in How It Works · this strip just signals scope. */}
-          <p
-            className="stagger-3 max-w-lg mb-10 font-mono text-[11px] tracking-wide"
-            style={{ color: 'var(--text-muted)', lineHeight: 1.7 }}
-          >
-            <span style={{ color: 'var(--gold-500)' }}>// WHAT WE AUDIT ·{' '}</span>
-            Security · Reliability · Performance · Verification
           </p>
 
           <div className="stagger-4 flex gap-4 justify-center lg:justify-start flex-wrap">
