@@ -132,6 +132,11 @@ export function AdminPage() {
   const [grantBusyId, setGrantBusyId]     = useState<string | null>(null)
   const [grantOut, setGrantOut]           = useState<string | null>(null)
 
+  // 일괄 재감사 (활성 프로젝트 전부 새 detector 로 refresh)
+  const [bulkBusy, setBulkBusy]           = useState(false)
+  const [bulkAgeDays, setBulkAgeDays]     = useState<number>(0)  // 0 = all active
+  const [bulkLog, setBulkLog]             = useState<Array<{ name: string; status: 'fire' | 'ok' | 'err'; msg: string }>>([])
+
   // 시즌 관리
   const [seasons, setSeasons]             = useState<SeasonRow[]>([])
   const [seasonName, setSeasonName]       = useState('')
@@ -452,6 +457,72 @@ export function AdminPage() {
     }
   }
 
+  // 일괄 재감사 — 활성 프로젝트 전부 (또는 last_analysis_at 이 N일 이상 된 것만)
+  // audit-preview 를 fire-and-forget 으로 트리거. 결과 폴링은 안 함 (각 audit
+  // 60-120s · 직렬 폴링하면 4개만 해도 8분). 신규 snapshot 은 Audits 탭에서 확인.
+  // 새 detector / migration 배포 직후 한 번 돌리는 게 1차 사용 사례.
+  async function handleBulkReaudit() {
+    if (!token) { setBulkLog([{ name: '-', status: 'err', msg: '관리자 토큰이 필요합니다' }]); return }
+    setBulkBusy(true)
+    setBulkLog([])
+    try {
+      const cutoff = bulkAgeDays > 0
+        ? new Date(Date.now() - bulkAgeDays * 86400_000).toISOString()
+        : null
+      let q = supabase
+        .from('projects')
+        .select('id, project_name, github_url, last_analysis_at')
+        .eq('status', 'active')
+        .not('github_url', 'is', null)
+        .order('last_analysis_at', { ascending: true, nullsFirst: true })
+      if (cutoff) q = q.or(`last_analysis_at.lt.${cutoff},last_analysis_at.is.null`)
+      const { data, error } = await q
+      if (error) { setBulkLog([{ name: '-', status: 'err', msg: error.message }]); return }
+      const rows = (data ?? []) as Array<{ id: string; project_name: string; github_url: string }>
+      if (rows.length === 0) { setBulkLog([{ name: '-', status: 'ok', msg: '대상 0개' }]); return }
+      for (const p of rows) {
+        setBulkLog(prev => [...prev, { name: p.project_name, status: 'fire', msg: '트리거 중…' }])
+        try {
+          const res = await fetch(`${(supabase as unknown as { supabaseUrl: string }).supabaseUrl}/functions/v1/audit-preview`, {
+            method: 'POST',
+            headers: {
+              'apikey':         (supabase as unknown as { supabaseKey: string }).supabaseKey,
+              'Authorization':  `Bearer ${(supabase as unknown as { supabaseKey: string }).supabaseKey}`,
+              'x-admin-token':  token,
+              'Content-Type':   'application/json',
+            },
+            body: JSON.stringify({ github_url: p.github_url, force: true }),
+          })
+          const body = await res.json().catch(() => ({}))
+          const ok = res.ok && body.project_id
+          setBulkLog(prev => {
+            const copy = prev.slice()
+            const idx = copy.findIndex(x => x.name === p.project_name && x.status === 'fire')
+            if (idx >= 0) copy[idx] = {
+              name: p.project_name,
+              status: ok ? 'ok' : 'err',
+              msg: ok ? `✅ pid ${String(body.project_id).slice(0, 8)} · 결과는 Audits 탭에서` : `❌ ${body.error ?? res.status}`,
+            }
+            return copy
+          })
+        } catch (e) {
+          setBulkLog(prev => {
+            const copy = prev.slice()
+            const idx = copy.findIndex(x => x.name === p.project_name && x.status === 'fire')
+            if (idx >= 0) copy[idx] = { name: p.project_name, status: 'err', msg: `❌ ${(e as Error).message}` }
+            return copy
+          })
+        }
+        // 2s 간격 — Anthropic / Edge concurrency 부담 줄이기
+        await new Promise(r => setTimeout(r, 2000))
+      }
+      invalidateLadderCache()
+      await loadRecent()
+    } finally {
+      setBulkBusy(false)
+    }
+  }
+
   async function handleToggleAdmin(target: UserRow) {
     if (!token) { setGrantOut('관리자 토큰이 필요합니다 · 도구 탭에서 입력'); return }
     if (target.id === user?.id) {
@@ -688,6 +759,11 @@ export function AdminPage() {
             onAdvanceSeason={handleAdvanceSeasonStatus}
             seasonBusy={seasonBusy}
             seasonOut={seasonOut}
+            bulkBusy={bulkBusy}
+            bulkAgeDays={bulkAgeDays}
+            setBulkAgeDays={setBulkAgeDays}
+            bulkLog={bulkLog}
+            onBulkReaudit={handleBulkReaudit}
           />
         )}
       </div>
@@ -1034,6 +1110,7 @@ function ToolsTab({
   seasons, seasonName, setSeasonName, seasonStart, setSeasonStart,
   seasonStatus, setSeasonStatus, onCreateSeason, onAdvanceSeason,
   seasonBusy, seasonOut,
+  bulkBusy, bulkAgeDays, setBulkAgeDays, bulkLog, onBulkReaudit,
 }: {
   token: string; tokenInput: string; setTokenInput: (s: string) => void; saveToken: () => void
   refreshUrl: string; setRefreshUrl: (s: string) => void
@@ -1044,6 +1121,10 @@ function ToolsTab({
   seasonStatus: 'upcoming' | 'active'; setSeasonStatus: (s: 'upcoming' | 'active') => void
   onCreateSeason: () => void; onAdvanceSeason: () => void
   seasonBusy: boolean; seasonOut: string | null
+  bulkBusy: boolean
+  bulkAgeDays: number; setBulkAgeDays: (n: number) => void
+  bulkLog: Array<{ name: string; status: 'fire' | 'ok' | 'err'; msg: string }>
+  onBulkReaudit: () => void
 }) {
   const computed = seasonStart ? computeSeasonDates(seasonStart) : null
   return (
@@ -1103,6 +1184,58 @@ function ToolsTab({
         {refreshOut && (
           <div className="mt-3 p-3 font-mono text-xs" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#fff' }}>
             {refreshOut}
+          </div>
+        )}
+      </section>
+
+      <section>
+        <div className="font-mono text-xs tracking-widest mb-3" style={{ color: 'var(--gold-500)' }}>// 일괄 재감사</div>
+        <p className="font-light text-sm mb-3" style={{ color: 'rgba(255,255,255,0.88)' }}>
+          활성(active) 프로젝트 전부에 새 audit 을 트리거. 새 detector / migration 배포 직후 한 번 돌리는 용도.
+          폴링 안 함 · 결과는 Audits 탭에서 확인 (각 audit ~60-120s · 4-20개면 수 분 소요).
+        </p>
+        <div className="flex items-center gap-2 flex-wrap">
+          <label className="font-mono text-xs" style={{ color: 'rgba(255,255,255,0.55)' }}>
+            마지막 감사 ≥
+          </label>
+          <input
+            type="number"
+            min={0}
+            value={bulkAgeDays}
+            onChange={e => setBulkAgeDays(Math.max(0, parseInt(e.target.value || '0', 10)))}
+            className="px-2 py-1.5 font-mono text-xs w-16"
+            style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', borderRadius: '2px' }}
+          />
+          <span className="font-mono text-xs" style={{ color: 'rgba(255,255,255,0.55)' }}>
+            일 전 (0 = 전부)
+          </span>
+          <button
+            onClick={onBulkReaudit}
+            disabled={bulkBusy || !token}
+            className="font-mono text-xs px-4 py-2 ml-auto"
+            style={{
+              background: 'var(--gold-500)', color: 'var(--navy-900)',
+              border: 'none', borderRadius: '2px',
+              cursor: bulkBusy || !token ? 'not-allowed' : 'pointer',
+              opacity: bulkBusy || !token ? 0.4 : 1,
+            }}
+          >
+            {bulkBusy ? '진행중…' : '일괄 트리거'}
+          </button>
+        </div>
+        {bulkLog.length > 0 && (
+          <div className="mt-3" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+            {bulkLog.map((row, i) => (
+              <div key={i} className="px-3 py-1.5 font-mono text-[11px] flex items-center gap-3"
+                   style={{ borderTop: i === 0 ? 'none' : '1px solid rgba(255,255,255,0.04)' }}>
+                <span style={{ width: '14em', color: 'rgba(255,255,255,0.88)' }}>{row.name}</span>
+                <span style={{
+                  color: row.status === 'ok'   ? 'var(--gold-500)'
+                       : row.status === 'err'  ? 'var(--scarlet)'
+                                               : 'rgba(255,255,255,0.55)',
+                }}>{row.msg}</span>
+              </div>
+            ))}
           </div>
         )}
       </section>
