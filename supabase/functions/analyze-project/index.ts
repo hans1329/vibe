@@ -105,7 +105,7 @@ interface GitHubInfo {
   contributors_count: number           // ecosystem signal · approx (capped at 100)
   // Form factor — determines weight emphasis (apps weight Lighthouse, libraries
   // weight ecosystem + tests, scaffolds weight reproducibility).
-  form_factor: 'app' | 'library' | 'scaffold' | 'unknown'
+  form_factor: 'app' | 'library' | 'scaffold' | 'native_app' | 'unknown'
   // npm registry signals · libraries only (null elsewhere)
   npm: {
     package_name:        string | null   // resolved from package.json `name`
@@ -162,6 +162,14 @@ interface GitHubInfo {
     readme_line_count:    number         // raw line count of README
     has_readme_install:   boolean        // README has "Installation" / "Install" section
     has_readme_usage:     boolean        // README has "Usage" / "Getting Started" / "Quick Start"
+    // ── Native-app distribution + permissions ──
+    has_permissions_manifest: boolean    // AndroidManifest / Info.plist / entitlements.plist
+    has_app_store:        boolean        // apps.apple.com or itunes.apple.com link in README
+    has_play_store:       boolean        // play.google.com link in README
+    has_test_flight:      boolean        // testflight.apple.com/join link
+    has_f_droid:          boolean        // f-droid.org/packages link
+    has_release_binary:   boolean        // README mentions APK / DMG / MSI / etc
+    has_privacy_policy:   boolean        // privacy-policy URL in README
     // ── Vibe Coder Checklist · 7-category framework (2026-04-28) ──
     // The systematic failure modes that ~70% of AI-coded projects miss
     // and generic linters / Cursor reviews don't catch. Surfaced as
@@ -212,7 +220,7 @@ function detectFormFactor(
   pkg: Record<string, unknown> | null,
   paths: string[],
   readme: string | null,
-): 'app' | 'library' | 'scaffold' | 'unknown' {
+): 'app' | 'library' | 'scaffold' | 'native_app' | 'unknown' {
   const pathSet = new Set(paths)
   const readmeHead = (readme ?? '').toLowerCase().slice(0, 3000)
   const name = typeof pkg?.name === 'string' ? (pkg.name as string) : ''
@@ -223,6 +231,48 @@ function detectFormFactor(
   const hasBin     = !!(pkg && (pkg as { bin?: unknown }).bin)
   const scripts = (pkg?.scripts ?? {}) as Record<string, string>
   const hasDevStart = !!(scripts.dev || scripts.start)
+  const allDeps = Object.assign({},
+    (pkg?.dependencies as Record<string, unknown>) ?? {},
+    (pkg?.devDependencies as Record<string, unknown>) ?? {})
+
+  // Native app indicators (highest priority — must come before scaffold/lib).
+  // Detection sources, any one is enough:
+  //   1. JS native frameworks in package.json deps:
+  //      react-native · expo · @capacitor/core · @ionic/* · electron ·
+  //      @tauri-apps/* · nativescript
+  //   2. Platform project files:
+  //      ios/ + android/ folders (RN / Cap) · *.xcodeproj · Podfile ·
+  //      AndroidManifest.xml · build.gradle · MainActivity.java/.kt
+  //   3. Flutter (no JS package.json — pubspec.yaml + lib/ + dart code)
+  //   4. Capacitor / Cordova config files: capacitor.config.* · config.xml
+  //   5. Tauri/Electron build configs: tauri.conf.json · electron-builder.json
+  const nativeJsFrameworks = !!(
+    'react-native' in allDeps || 'expo' in allDeps ||
+    '@capacitor/core' in allDeps || '@ionic/angular' in allDeps ||
+    '@ionic/react' in allDeps || 'nativescript' in allDeps ||
+    '@nativescript/core' in allDeps ||
+    'electron' in allDeps || '@tauri-apps/api' in allDeps ||
+    Object.keys(allDeps).some(d => d.startsWith('@tauri-apps/'))
+  )
+  const platformPaths = (
+    paths.some(p => /^ios\//.test(p)) ||
+    paths.some(p => /^android\//.test(p)) ||
+    paths.some(p => /\.xcodeproj/.test(p)) ||
+    pathSet.has('Podfile') ||
+    paths.some(p => /AndroidManifest\.xml$/.test(p)) ||
+    paths.some(p => /MainActivity\.(java|kt)$/.test(p))
+  )
+  const flutterPath = pathSet.has('pubspec.yaml') ||
+    paths.some(p => /\.dart$/.test(p))
+  const nativeBuildConfig = (
+    pathSet.has('capacitor.config.json') || pathSet.has('capacitor.config.ts') ||
+    pathSet.has('capacitor.config.js')   || pathSet.has('config.xml') ||
+    pathSet.has('tauri.conf.json')       || pathSet.has('electron-builder.json') ||
+    pathSet.has('electron-builder.yml')
+  )
+  if (nativeJsFrameworks || platformPaths || flutterPath || nativeBuildConfig) {
+    return 'native_app'
+  }
 
   // Scaffold indicators (highest priority — they often look like libraries)
   const scaffoldName = /^(create-|@.+\/create-)/.test(name) || /\b(starter|template|boilerplate|scaffold|kit)\b/i.test(name)
@@ -318,6 +368,13 @@ async function inspectGitHub(url: string): Promise<GitHubInfo> {
       readme_line_count: 0,
       has_readme_install: false,
       has_readme_usage: false,
+      has_permissions_manifest: false,
+      has_app_store: false,
+      has_play_store: false,
+      has_test_flight: false,
+      has_f_droid: false,
+      has_release_binary: false,
+      has_privacy_policy: false,
       vibe_concerns: {
         webhook_idempotency: { handlers_seen: 0, idempotency_signal_seen: 0, gap: false, sample_files: [] },
         rls_gaps:            { tables: 0, policies: 0, writable_table_signals: 0, gap_estimate: 0, has_rls_intent: false },
@@ -1022,6 +1079,21 @@ async function inspectGitHub(url: string): Promise<GitHubInfo> {
   })()
   const is_saas = has_api_routes && has_db_layer && has_auth_signals
 
+  // ── Native-app distribution + permissions signals ──
+  // Detected once and surfaced through gh.signals so the slot scorer
+  // (outside fetchGithub) can use them without re-walking paths.
+  const has_permissions_manifest =
+    paths.some(p => /AndroidManifest\.xml$/.test(p)) ||
+    paths.some(p => /Info\.plist$/.test(p)) ||
+    paths.some(p => /entitlements\.plist$/.test(p))
+  const has_app_store      = /apps\.apple\.com|itunes\.apple\.com\/[a-z]{2}\/app/i.test(readmeRaw ?? '')
+  const has_play_store     = /play\.google\.com\/store\/apps/i.test(readmeRaw ?? '')
+  const has_test_flight    = /testflight\.apple\.com\/join/i.test(readmeRaw ?? '')
+  const has_f_droid        = /f-droid\.org\/packages/i.test(readmeRaw ?? '')
+  const has_release_binary = /\.(apk|aab|dmg|exe|msi|pkg|deb|rpm|appimage)\b/i.test(readmeRaw ?? '')
+  const has_privacy_policy = /privacy[\s-]*policy|개인정보\s*처리방침/i.test(readmeRaw ?? '') &&
+    /https?:\/\//.test(readmeRaw ?? '')
+
   // ── README depth analysis ── (uses readmeRaw already fetched above)
   const readmeFull = readmeRaw ?? ''
   const readme_line_count = readmeFull.split('\n').length
@@ -1164,6 +1236,13 @@ async function inspectGitHub(url: string): Promise<GitHubInfo> {
       readme_line_count,
       has_readme_install,
       has_readme_usage,
+      has_permissions_manifest,
+      has_app_store,
+      has_play_store,
+      has_test_flight,
+      has_f_droid,
+      has_release_binary,
+      has_privacy_policy,
       vibe_concerns,
     },
     readme_excerpt,
@@ -2759,6 +2838,12 @@ Deno.serve(async (req) => {
   // slots so we score on what's verifiable in the repo. form_factor stays
   // available to Claude as evidence in the prompt.
   const isAppForm    = gh.form_factor === 'app' || gh.form_factor === 'unknown'
+  // Native-app sub-form (mobile / desktop binary) gets its own slot
+  // semantics. Web checks (Lighthouse / live URL probe) don't apply —
+  // the runtime is the user's device, not a server. We score on
+  // build / distribution evidence instead (app store · TestFlight ·
+  // GH releases · platform configs · permissions discipline).
+  const isNativeApp  = gh.form_factor === 'native_app'
   // SaaS sub-form OVERRIDES library detection · cal.com / supabase
   // Studio etc. are monorepos that publish library packages but the
   // user-visible product is the auth-walled SaaS. When is_saas is
@@ -2767,11 +2852,11 @@ Deno.serve(async (req) => {
   // weights shift: LH ↓, Production Maturity ↑, Source Hygiene ↑,
   // Live URL Health ↓, NEW Backend Signals slot (RLS / webhook /
   // indexes / rate-limit / secrets in vibe_concerns).
-  const isSaasForm   = gh.signals.is_saas && health.ok
+  const isSaasForm   = gh.signals.is_saas && health.ok && !isNativeApp
   // useWebSlots true if web app OR SaaS (both want LH/Live signals,
-  // just rescaled differently). Library/CLI/scaffold without is_saas
-  // stay on lib slots.
-  const useWebSlots  = (isAppForm && health.ok) || isSaasForm
+  // just rescaled differently). Library/CLI/scaffold/native_app
+  // without is_saas stay on non-web slots.
+  const useWebSlots  = (isAppForm && health.ok && !isNativeApp) || isSaasForm
 
   const stackHints = [
     brief?.features ?? '',
@@ -2783,7 +2868,10 @@ Deno.serve(async (req) => {
   // slots get neutralized for libraries / CLIs / scaffolds (they don't have
   // UIs and don't necessarily ship internal observability — penalizing on
   // these slots was conflating app criteria onto library form factors).
-  const maturity   = scoreProductionMaturity(gh.signals, lh, lhDesktop, !isAppForm)  //  0-12
+  // Native apps fall under the same "no-web" track as libraries for
+  // maturity scoring · their responsive-CSS / web-observability signals
+  // are noise (the runtime is a binary, not a browser).
+  const maturity   = scoreProductionMaturity(gh.signals, lh, lhDesktop, !isAppForm || isNativeApp)  //  0-12
   const hygiene    = scoreSourceHygiene(gh)                                    //  0-5  (v3 restored)
   const ecosystem  = scoreEcosystem(gh)                                        //  0-3 soft
   const activity   = scoreActivity(gh)                                         //  0-2 soft
@@ -2827,10 +2915,37 @@ Deno.serve(async (req) => {
   const libComplEquiv  = (gh.signals.releases_count >= 5 ? 1 : 0) +
                          (gh.signals.has_changelog ? 1 : 0)
 
+  // ── Native-app equivalent slots ──
+  // Distribution evidence · 0-5 (replaces Live URL Health for native_app).
+  // App Store / Play Store / TestFlight / F-Droid / GitHub Release
+  // binary signatures · the only valid "is it shipped to users?" signal
+  // for a mobile / desktop app. Detected during fetchGithub from
+  // README content (signals.has_*). Each source counts; cap 5.
+  const distributionPts = Math.min(5,
+    (gh.signals.has_app_store      ? 2 : 0) +
+    (gh.signals.has_play_store     ? 2 : 0) +
+    (gh.signals.has_test_flight    ? 1 : 0) +
+    (gh.signals.has_f_droid        ? 1 : 0) +
+    (gh.signals.has_release_binary ? 1 : 0)
+  )
+  // Native completeness · 0-2 (replaces web completeness for native_app).
+  // Privacy policy URL + platform permissions manifest presence — both
+  // are App / Play Store rejection gates and have no web analogue.
+  const nativeComplPts =
+    (gh.signals.has_privacy_policy        ? 1 : 0) +
+    (gh.signals.has_permissions_manifest  ? 1 : 0)
+
   // Pick the right slot values based on form factor.
+  // - useWebSlots (web app / SaaS) · Lighthouse · live URL probe · web meta
+  // - native_app · lib-style code-quality slot + distribution + permissions
+  // - library / cli / scaffold · lib-style across the board
   const lhPts          = useWebSlots ? lhScore.total : libLhEquivPts             //  0-20
-  const healthPts      = useWebSlots ? liveHealthPts : libLiveEquiv            //  0-5
-  const completenessPts = useWebSlots ? completenessRawPts : libComplEquiv     //  0-2
+  const healthPts      = useWebSlots ? liveHealthPts
+                       : isNativeApp ? distributionPts
+                       : libLiveEquiv                                            //  0-5
+  const completenessPts = useWebSlots ? completenessRawPts
+                        : isNativeApp ? nativeComplPts
+                        : libComplEquiv                                          //  0-2
   // Walk-on Brief substitute · 0-3 pts when no Brief is submitted (CLI
   // track) but README is rich AND the live URL is healthy. Lifts the
   // walk-on ceiling from /47 toward /50 for projects that ship real
@@ -2993,8 +3108,9 @@ Deno.serve(async (req) => {
     scoring_so_far: {
       auto_50_breakdown: {
         is_app_form:          isAppForm,
+        is_native_app:        isNativeApp,
         use_web_slots:        useWebSlots,
-        slot_evaluation_mode: useWebSlots ? 'web' : 'library',
+        slot_evaluation_mode: useWebSlots ? 'web' : isNativeApp ? 'native_app' : 'library',
         live_url_reachable:   health.ok,
         // web mode  → Lighthouse mobile breakdown
         // library mode (no URL OR non-app form) → libLhEquivPts substitute
@@ -3286,6 +3402,7 @@ Deno.serve(async (req) => {
     delta_from_parent: Object.keys(deltaFromParent).length ? deltaFromParent : null,
     breakdown: {
       is_app_form:         isAppForm,
+      is_native_app:       isNativeApp,
       use_web_slots:       useWebSlots,
       live_url_reachable:  health.ok,
       lighthouse:          useWebSlots ? lhScore : { total: libLhEquivPts, equivalent_for: `${gh.form_factor}${health.ok ? '' : '-no-live-url'}`, breakdown: { tests: libTestsPts, docs: libDocsPts, types: libTypesPts, governance: libGovPts } },
@@ -3295,6 +3412,26 @@ Deno.serve(async (req) => {
       tech:                { pts: tech.pts, layers: tech.layers },
       brief:               { ...briefScore, effective: briefEffective, substitute: briefSubst },
       health_pts:          healthPts,
+      // Native-app specific surface · only populated when isNativeApp.
+      // Lets Claude reason on distribution evidence instead of penalizing
+      // missing Lighthouse, and lets the UI show a 'Distribution' card.
+      native_distribution: isNativeApp ? {
+        pts: distributionPts,
+        breakdown: {
+          app_store:        gh.signals.has_app_store,
+          play_store:       gh.signals.has_play_store,
+          test_flight:      gh.signals.has_test_flight,
+          f_droid:          gh.signals.has_f_droid,
+          release_binary:   gh.signals.has_release_binary,
+        },
+      } : null,
+      native_completeness: isNativeApp ? {
+        pts: nativeComplPts,
+        breakdown: {
+          privacy_policy:        gh.signals.has_privacy_policy,
+          permissions_manifest:  gh.signals.has_permissions_manifest,
+        },
+      } : null,
       ecosystem:           ecosystem,
       activity:            activity,
       elite:               elite,
