@@ -81,27 +81,28 @@ export function Hero(_props: HeroProps) {
           <div className="stagger-3 w-24 h-px mb-6" style={{ background: 'var(--gold-500)', opacity: 0.4 }} />
 
           {/* Value prop · errors-first positioning (2026-04-30 pivot).
-              Two short lines · 7-frame mono chip carries the detail. */}
+              Mobile breaks the two sentences onto separate lines so the
+              second beat lands; desktop keeps them on one line. */}
           <p
             className="stagger-3 max-w-lg mb-3 font-display"
             style={{ color: 'var(--cream)', fontSize: '1.45rem', lineHeight: 1.4, fontWeight: 600 }}
           >
-            AI ships fast. AI also misses things.
+            AI ships fast.<span className="hidden sm:inline">{' '}</span><br className="sm:hidden" />AI also misses things.
           </p>
           <p
             className="stagger-3 max-w-lg mb-5 font-light"
             style={{ color: 'rgba(248,245,238,0.55)', fontSize: '1.05rem', lineHeight: 1.65 }}
           >
-            We catch what your prompts forgot.
+            We catch what your prompts forgot — and put your build on stage.
           </p>
-          {/* AI Coder 7 Frames · concise list of what we check.
-              Mono / muted so it reads as a tag-strip, not a sentence. */}
+          {/* Pillars · the 4 quality axes. The detailed 7-frame list lives
+              in How It Works · this strip just signals scope. */}
           <p
             className="stagger-3 max-w-lg mb-10 font-mono text-[11px] tracking-wide"
             style={{ color: 'var(--text-muted)', lineHeight: 1.7 }}
           >
-            <span style={{ color: 'var(--gold-500)' }}>// AI CODER 7 FRAMES ·{' '}</span>
-            secrets · error tracking · webhook idempotency · RLS · rate limits · indexes · prompt injection
+            <span style={{ color: 'var(--gold-500)' }}>// WHAT WE AUDIT ·{' '}</span>
+            Security · Reliability · Performance · Verification
           </p>
 
           <div className="stagger-4 flex gap-4 justify-center lg:justify-start flex-wrap">

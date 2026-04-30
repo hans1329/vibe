@@ -147,6 +147,50 @@ export function LandingPage() {
             <SeasonProgressBar />
           </div>
 
+          {/* 7 patterns · the AI Coder 7 Frames marketing surface.
+              Hero mentions Security / Reliability / Performance / Verification
+              as the pillars; this is where they unfold into specific frames so
+              creators understand what we look for. Per §4, no emoji icons —
+              tonal accent dots + typography. */}
+          <div className="mb-20">
+            <div className="font-mono text-xs tracking-widest mb-4" style={{ color: 'var(--gold-500)' }}>// AI CODER 7 FRAMES</div>
+            <h3 className="font-display font-bold text-2xl sm:text-3xl mb-3 leading-tight">
+              7 patterns vibe-coded products tend to break
+            </h3>
+            <p className="font-light max-w-xl mb-8" style={{ color: 'rgba(248,245,238,0.45)' }}>
+              These are the failure modes AI codegen ships without thinking. The audit looks for each one
+              and surfaces the evidence — file paths, sample patterns, what to fix.
+            </p>
+            {(() => {
+              const FRAMES = [
+                { pillar: 'Security',     accent: '#F0C040', title: 'Secret hygiene',      desc: 'Service keys, tokens leaked to client' },
+                { pillar: 'Reliability',  accent: '#60A5FA', title: 'Webhook integrity',   desc: 'Stripe retries, duplicate charges' },
+                { pillar: 'Security',     accent: '#F0C040', title: 'RLS gaps',            desc: 'Tables exposed to all users' },
+                { pillar: 'Performance',  accent: '#A78BFA', title: 'Missing indexes',     desc: 'Slow dashboards at scale' },
+                { pillar: 'Reliability',  accent: '#60A5FA', title: 'Rate limits',         desc: 'DDoS, bill shock' },
+                { pillar: 'Verification', accent: '#00D4AA', title: 'Error tracking',      desc: 'Silent failures' },
+                { pillar: 'Security',     accent: '#F0C040', title: 'Prompt injection',    desc: 'User input bleeding into system prompts' },
+              ] as const
+              return (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {FRAMES.map(f => (
+                    <div key={f.title} className="card-navy p-4" style={{ borderLeft: `2px solid ${f.accent}` }}>
+                      <div className="font-mono text-[10px] tracking-widest mb-1.5" style={{ color: f.accent, opacity: 0.85 }}>
+                        {f.pillar.toUpperCase()}
+                      </div>
+                      <div className="font-display font-bold text-base mb-1" style={{ color: 'var(--cream)' }}>
+                        {f.title}
+                      </div>
+                      <div className="text-xs font-light leading-relaxed" style={{ color: 'rgba(248,245,238,0.45)' }}>
+                        {f.desc}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )
+            })()}
+          </div>
+
           <div className="font-mono text-xs tracking-widest mb-6" style={{ color: 'rgba(248,245,238,0.3)' }}>PROGRESSIVE REVEAL — DEEPER ANALYSIS UNLOCKS WITH SCOUT VOTES</div>
           <div className="relative">
             <div className="absolute left-4 top-0 bottom-0 w-px" style={{ background: 'linear-gradient(to bottom, var(--gold-500), transparent)', opacity: 0.2 }} />
