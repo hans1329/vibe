@@ -80,11 +80,22 @@ export function Hero(_props: HeroProps) {
 
           <div className="stagger-3 w-24 h-px mb-6" style={{ background: 'var(--gold-500)', opacity: 0.4 }} />
 
+          {/* Value prop · errors-first positioning (2026-04-30 pivot).
+              Lead line in cream — punchy statement.
+              Sub line in muted — what we actually do. */}
           <p
-            className="stagger-3 max-w-md mb-10 font-light"
-            style={{ color: 'rgba(248,245,238,0.55)', fontSize: '1.1rem', lineHeight: 1.7 }}
+            className="stagger-3 max-w-lg mb-3 font-display"
+            style={{ color: 'var(--cream)', fontSize: '1.45rem', lineHeight: 1.4, fontWeight: 600 }}
           >
-            Engine audits. Scouts forecast. Top 20% graduate.
+            AI ships fast. AI also misses things.
+          </p>
+          <p
+            className="stagger-3 max-w-lg mb-10 font-light"
+            style={{ color: 'rgba(248,245,238,0.55)', fontSize: '1.05rem', lineHeight: 1.65 }}
+          >
+            We find what your prompts didn't ask about — RLS holes,
+            webhook idempotency, secret leaks, missing error tracking.
+            Then we score what's left.
           </p>
 
           <div className="stagger-4 flex gap-4 justify-center lg:justify-start flex-wrap">
@@ -133,7 +144,7 @@ export function Hero(_props: HeroProps) {
           </div>
           <p className="font-light text-sm mb-5 text-center lg:text-left" style={{ color: 'rgba(248,245,238,0.55)' }}>
             <span className="font-mono" style={{ color: 'var(--gold-500)' }}>npx commitshow@latest audit</span>
-            {' '}on any GitHub repo. Score in 60 seconds.
+            {' '}on any GitHub repo. Catch what your AI missed in 60 seconds.
           </p>
           <HeroTerminal />
         </div>

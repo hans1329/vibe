@@ -116,7 +116,7 @@ export function LandingPage() {
                 5 minutes.
               </p>
               <div className="font-mono text-[11px] tracking-wide" style={{ color: 'var(--text-muted)' }}>
-                6 categories · saas · tools · ai agents · games · libraries · other
+                7 use-case categories · productivity · niche saas · creator · dev tools · ai agents · consumer · games
               </div>
             </div>
 

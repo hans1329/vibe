@@ -17,6 +17,7 @@ import type { AnalysisResult } from '../lib/analysis'
 import { AnalysisResultCard } from '../components/AnalysisResultCard'
 import { ScoreTimeline } from '../components/ScoreTimeline'
 import { VibeConcernsPanel } from '../components/VibeConcernsPanel'
+import { NativeAppPanel, type NativeAppBreakdown } from '../components/NativeAppPanel'
 import { ForecastModal } from '../components/ForecastModal'
 import { ApplaudButton } from '../components/ApplaudButton'
 import { EditProjectModal } from '../components/EditProjectModal'
@@ -40,6 +41,7 @@ export function ProjectDetailPage() {
   const [project, setProject] = useState<Project | null>(null)
   const [snapshotResult, setSnapshotResult] = useState<AnalysisResult | null>(null)
   const [vibeConcerns, setVibeConcerns] = useState<any>(null)
+  const [nativeBreakdown, setNativeBreakdown] = useState<NativeAppBreakdown | null>(null)
   const [timeline, setTimeline] = useState<TimelinePoint[]>([])
   const [forecasts, setForecasts] = useState<ForecastRow[]>([])
   const [applauds, setApplauds] = useState<ApplaudRow[]>([])
@@ -93,6 +95,10 @@ export function ProjectDetailPage() {
         const lhRaw = (latest.lighthouse ?? {}) as { performance?: number; accessibility?: number; bestPractices?: number; seo?: number }
         const ghSig = (latest.github_signals ?? {}) as { vibe_concerns?: unknown }
         setVibeConcerns(ghSig.vibe_concerns ?? null)
+        // Native-app distribution + permissions block (only present when
+        // form_factor='native_app'). Pulled from rich_analysis.breakdown.
+        const richBreakdown = (latest.rich_analysis as { breakdown?: NativeAppBreakdown } | null)?.breakdown ?? null
+        setNativeBreakdown(richBreakdown && richBreakdown.is_native_app ? richBreakdown : null)
         setSnapshotResult({
           score_auto:        latest.score_auto ?? 0,
           score_forecast:    proj.score_forecast ?? 0,
@@ -417,6 +423,15 @@ export function ProjectDetailPage() {
             {vibeConcerns && (
               <div className="mt-8">
                 <VibeConcernsPanel vibeConcerns={vibeConcerns} />
+              </div>
+            )}
+
+            {/* Native-app surface · only when latest snapshot detected
+                form_factor='native_app'. Shows store gates + distribution
+                evidence in lieu of Lighthouse / live URL probes. */}
+            {nativeBreakdown && (
+              <div className="mt-8">
+                <NativeAppPanel breakdown={nativeBreakdown} />
               </div>
             )}
           </section>

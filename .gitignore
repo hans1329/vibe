@@ -17,6 +17,7 @@ dist-ssr/
 # admin internals). NEVER commit. See CLAUDE.md §0 for index.
 INTERNAL.md
 INTERNAL_*.md
+CTO.md
 
 # Editor
 .vscode/*
