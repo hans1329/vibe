@@ -176,14 +176,34 @@ export function SubmitForm({ onComplete }: SubmitFormProps) {
     let insertedId: string
     if (verdict.kind === 'claim') {
       // CLAIM — upgrade the CLI preview row. Snapshot history stays intact.
-      // No .select().single() chain · the id is already known and a 0-row
-      // UPDATE no longer surfaces as a coerce error.
+      //
+      // Session sanity-check before the UPDATE: useAuth() returns the React
+      // copy of `user`, which can desync from supabase-js's active JWT
+      // (e.g. token expired in the background, OAuth handoff incomplete).
+      // The RLS WITH CHECK clause `auth.uid() = creator_id` is evaluated
+      // against the JWT, NOT against the React state, so a desync surfaces
+      // as 42501 ("new row violates row-level security policy") with no
+      // user-visible auth error. Force a fresh session read here so we
+      // can either reuse the JWT user id (guaranteed to match auth.uid())
+      // or surface a clear "sign in again" message.
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.user?.id) {
+        setError('Your sign-in session expired. Refresh and sign in again.')
+        setStep(2); return
+      }
+      // Use the JWT-bound id so server-side auth.uid() always matches.
+      const claimFields = { ...projectFields, creator_id: session.user.id }
       const { error: updErr } = await supabase
-        .from('projects').update(projectFields).eq('id', verdict.projectId)
+        .from('projects').update(claimFields).eq('id', verdict.projectId)
       if (updErr) {
-        // Surface raw error to console so cache-staleness vs. real-bug
-        // diagnosis is one F12 away. updErr.code helps spot RLS (42501).
-        console.error('[claim preview] update failed', { code: (updErr as { code?: string }).code, message: updErr.message, projectId: verdict.projectId })
+        // Surface raw error to console so dev tools shows code + message.
+        console.error('[claim preview] update failed', {
+          code: (updErr as { code?: string }).code,
+          message: updErr.message,
+          projectId: verdict.projectId,
+          jwtUserId: session.user.id,
+          reactUserId: user?.id,
+        })
         setError(`Failed to claim preview project: ${updErr.message} (code ${(updErr as { code?: string }).code ?? '?'})`)
         setStep(2); return
       }
