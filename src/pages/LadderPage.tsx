@@ -275,9 +275,17 @@ export function LadderPage() {
             ) : rows.length === 0 ? (
               <EmptyState category={category} window={window} />
             ) : (
-              <ol className="divide-y" style={{ borderColor: 'rgba(255,255,255,0.04)' }}>
-                {rows.map(r => (
-                  <LadderRowItem key={r.project_id} row={r} onOpen={() => navigate(`/projects/${r.project_id}`)} />
+              // Faint per-row border-top (skip first) · Tailwind's divide-y
+              // default border color was too bright and the [&>li+li] escape
+              // hatch tripped JSX parsing on the '>'.
+              <ol>
+                {rows.map((r, i) => (
+                  <LadderRowItem
+                    key={r.project_id}
+                    row={r}
+                    isFirst={i === 0}
+                    onOpen={() => navigate(`/projects/${r.project_id}`)}
+                  />
                 ))}
               </ol>
             )}
@@ -318,13 +326,13 @@ export function LadderPage() {
   )
 }
 
-function LadderRowItem({ row, onOpen }: { row: LadderRow; onOpen: () => void }) {
+function LadderRowItem({ row, isFirst, onOpen }: { row: LadderRow; isFirst?: boolean; onOpen: () => void }) {
   const rankTone = row.rank === 1 ? 'var(--gold-500)' : row.rank <= 10 ? 'var(--cream)' : 'var(--text-secondary)'
   const audited  = row.audited_at ? new Date(row.audited_at) : null
   const ago      = audited ? formatAgo(audited) : '—'
 
   return (
-    <li>
+    <li style={isFirst ? undefined : { borderTop: '1px solid rgba(255,255,255,0.04)' }}>
       <button
         type="button"
         onClick={onOpen}
