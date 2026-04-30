@@ -176,14 +176,15 @@ export function SubmitForm({ onComplete }: SubmitFormProps) {
     let insertedId: string
     if (verdict.kind === 'claim') {
       // CLAIM — upgrade the CLI preview row. Snapshot history stays intact.
-      // Skip .select().single() because RLS on the UPDATE may return 0 rows
-      // even on success (PostgREST then throws "Cannot coerce the result to
-      // a single JSON object"). We already know the id from verdict, so we
-      // only need to know whether the UPDATE itself errored.
+      // No .select().single() chain · the id is already known and a 0-row
+      // UPDATE no longer surfaces as a coerce error.
       const { error: updErr } = await supabase
         .from('projects').update(projectFields).eq('id', verdict.projectId)
       if (updErr) {
-        setError(`Failed to claim preview project: ${updErr.message}`)
+        // Surface raw error to console so cache-staleness vs. real-bug
+        // diagnosis is one F12 away. updErr.code helps spot RLS (42501).
+        console.error('[claim preview] update failed', { code: (updErr as { code?: string }).code, message: updErr.message, projectId: verdict.projectId })
+        setError(`Failed to claim preview project: ${updErr.message} (code ${(updErr as { code?: string }).code ?? '?'})`)
         setStep(2); return
       }
       insertedId = verdict.projectId
