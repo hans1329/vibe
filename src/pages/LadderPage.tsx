@@ -31,9 +31,10 @@ import { useAuth } from '../lib/auth'
 
 const WINDOWS: LadderWindow[] = ['today', 'week', 'month', 'all_time']
 type ViewMode = 'list' | 'cards'
+type CatFilter = LadderCategory | 'all'
 
-function isCategory(v: string | null): v is LadderCategory {
-  return !!v && (LADDER_CATEGORIES as readonly string[]).includes(v)
+function isCategoryFilter(v: string | null): v is CatFilter {
+  return v === 'all' || (!!v && (LADDER_CATEGORIES as readonly string[]).includes(v))
 }
 function isWindow(v: string | null): v is LadderWindow {
   return !!v && (WINDOWS as readonly string[]).includes(v)
@@ -47,7 +48,7 @@ export function LadderPage() {
   const { user }    = useAuth()
   const [params, setParams] = useSearchParams()
 
-  const category: LadderCategory = isCategory(params.get('cat'))    ? params.get('cat') as LadderCategory : 'productivity_personal'
+  const category: CatFilter      = isCategoryFilter(params.get('cat')) ? params.get('cat') as CatFilter : 'all'
   const window:   LadderWindow   = isWindow(params.get('window'))   ? params.get('window') as LadderWindow : 'week'
   const view:     ViewMode       = isView(params.get('view'))       ? params.get('view') as ViewMode : 'list'
 
@@ -227,15 +228,21 @@ export function LadderPage() {
           </div>
         </div>
 
-        {/* ── Category chip strip ── */}
+        {/* ── Category chip strip · 'All' is the default + always-leftmost ── */}
         <div className="mb-6 flex items-center gap-2 flex-wrap">
-          {LADDER_CATEGORIES.map(c => {
-            const active = c === category
+          {([
+            { value: 'all' as const,           label: 'All' },
+            ...LADDER_CATEGORIES.map(c => ({ value: c, label: LADDER_CATEGORY_LABELS[c] })),
+          ]).map(c => {
+            const active = c.value === category
+            const total  = c.value === 'all'
+              ? Object.values(counts).reduce((s, n) => s + n, 0)
+              : (counts[c.value as LadderCategory] ?? 0)
             return (
               <button
-                key={c}
+                key={c.value}
                 type="button"
-                onClick={() => updateParam('cat', c)}
+                onClick={() => updateParam('cat', c.value)}
                 className="font-mono text-[11px] tracking-wide px-3 py-1.5 inline-flex items-center gap-2"
                 style={{
                   background:  active ? 'rgba(240,192,64,0.12)' : 'transparent',
@@ -245,9 +252,9 @@ export function LadderPage() {
                   cursor:      'pointer',
                 }}
               >
-                {LADDER_CATEGORY_LABELS[c]}
+                {c.label}
                 <span className="tabular-nums" style={{ color: active ? 'var(--gold-500)' : 'var(--text-muted)' }}>
-                  {counts[c] ?? 0}
+                  {total}
                 </span>
               </button>
             )
@@ -369,11 +376,12 @@ function LadderRowItem({ row, onOpen }: { row: LadderRow; onOpen: () => void }) 
   )
 }
 
-function EmptyState({ category, window }: { category: LadderCategory; window: LadderWindow }) {
+function EmptyState({ category, window }: { category: LadderCategory | 'all'; window: LadderWindow }) {
+  const label = category === 'all' ? 'the ladder' : LADDER_CATEGORY_LABELS[category]
   return (
     <div className="px-5 py-12 text-center">
       <div className="font-display font-bold text-lg mb-2" style={{ color: 'var(--cream)' }}>
-        Nothing ranked in {LADDER_CATEGORY_LABELS[category]} for {LADDER_WINDOW_LABELS[window].toLowerCase()}
+        Nothing ranked in {label} for {LADDER_WINDOW_LABELS[window].toLowerCase()}
       </div>
       <p className="font-light text-sm" style={{ color: 'var(--text-secondary)' }}>
         Either no project has been audited in this window, or the ladder is still warming up.

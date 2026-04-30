@@ -32,7 +32,7 @@ const listCache    = new Map<string, CacheEntry<LadderRow[]>>()
 const projectCache = new Map<string, CacheEntry<Array<{ project: Project; rank: number }>>>()
 const countsCache  = new Map<string, CacheEntry<Record<LadderCategory, number>>>()
 
-function cacheKey(category: LadderCategory, window: LadderWindow): string {
+function cacheKey(category: LadderCategory | 'all', window: LadderWindow): string {
   return `${category}|${window}`
 }
 function isFresh<T>(entry: CacheEntry<T> | undefined): entry is CacheEntry<T> {
@@ -47,11 +47,11 @@ export function invalidateLadderCache(): void {
 }
 
 /** Read whatever's cached now · used by the page for instant first paint. */
-export function getCachedLadder(category: LadderCategory, window: LadderWindow): LadderRow[] | null {
+export function getCachedLadder(category: LadderCategory | 'all', window: LadderWindow): LadderRow[] | null {
   const e = listCache.get(cacheKey(category, window))
   return isFresh(e) ? e.data : null
 }
-export function getCachedLadderProjects(category: LadderCategory, window: LadderWindow): Array<{ project: Project; rank: number }> | null {
+export function getCachedLadderProjects(category: LadderCategory | 'all', window: LadderWindow): Array<{ project: Project; rank: number }> | null {
   const e = projectCache.get(cacheKey(category, window))
   return isFresh(e) ? e.data : null
 }
@@ -85,7 +85,7 @@ const RANK_COLUMN: Record<LadderWindow, string> = {
 }
 
 export async function fetchLadder(
-  category: LadderCategory,
+  category: LadderCategory | 'all',
   window:   LadderWindow,
   limit = 50,
 ): Promise<LadderRow[]> {
@@ -95,13 +95,21 @@ export async function fetchLadder(
   // ladder_rankings_mv ↔ projects relationship (MV has no FK constraints,
   // so PGRST200 'no relationship found' is what came back). Pull MV rows
   // first, then fetch the matching projects in a separate query.
-  const { data: mvRows, error } = await supabase
+  //
+  // 'all' bucket: skip the category eq filter and re-rank globally by
+  // score_total. The MV's rank_* columns are per-category partitions,
+  // so for an All-view we have to assign sequential ranks ourselves.
+  let q = supabase
     .from('ladder_rankings_mv')
     .select(`project_id, category, score_total, score_auto, audit_count, audited_at, commit_sha, ${rankCol}`)
-    .eq('category', category)
-    .not(rankCol, 'is', null)
-    .order(rankCol, { ascending: true })
-    .limit(limit)
+  if (category !== 'all') q = q.eq('category', category)
+  if (window !== 'all_time') q = q.not(rankCol, 'is', null)
+  q = category === 'all'
+    // Global view · order by score so re-ranked sequence reads as a
+    // single overall leaderboard.
+    ? q.order('score_total', { ascending: false })
+    : q.order(rankCol, { ascending: true })
+  const { data: mvRows, error } = await q.limit(limit)
   if (error || !mvRows || mvRows.length === 0) return []
 
   type MvRaw = {
@@ -129,11 +137,13 @@ export async function fetchLadder(
     ((pj as unknown as ProjRow[]) ?? []).map(p => [p.id, p])
   )
 
-  const result = (mvRows as unknown as MvRaw[]).map(r => {
+  const result = (mvRows as unknown as MvRaw[]).map((r, i) => {
     const p = pmap.get(r.project_id)
     return {
       project_id:    r.project_id,
-      rank:          (r[rankCol] as number) ?? 0,
+      // 'all' view: assign sequential rank from sort order (score desc)
+      // since MV's rank_* are partitioned per-category.
+      rank:          category === 'all' ? i + 1 : ((r[rankCol] as number) ?? 0),
       category:      r.category,
       score_total:   r.score_total,
       score_auto:    r.score_auto,
@@ -148,7 +158,7 @@ export async function fetchLadder(
       creator_name:  p?.creator_name ?? null,
     }
   })
-  listCache.set(cacheKey(category, window), { data: result, fetchedAt: Date.now() })
+  listCache.set(cacheKey(category as LadderCategory, window), { data: result, fetchedAt: Date.now() })
   return result
 }
 
@@ -157,18 +167,20 @@ export async function fetchLadder(
 // the full PUBLIC_PROJECT_COLUMNS shape so cards have description,
 // tech_layers, etc. Empty when MV is missing.
 export async function fetchLadderProjects(
-  category: LadderCategory,
+  category: LadderCategory | 'all',
   window:   LadderWindow,
   limit = 50,
 ): Promise<{ project: Project; rank: number }[]> {
   const rankCol = RANK_COLUMN[window]
-  const { data: ids, error: idsErr } = await supabase
+  let q = supabase
     .from('ladder_rankings_mv')
-    .select(`project_id, ${rankCol}`)
-    .eq('category', category)
-    .not(rankCol, 'is', null)
-    .order(rankCol, { ascending: true })
-    .limit(limit)
+    .select(`project_id, score_total, ${rankCol}`)
+  if (category !== 'all') q = q.eq('category', category)
+  if (window !== 'all_time') q = q.not(rankCol, 'is', null)
+  q = category === 'all'
+    ? q.order('score_total', { ascending: false })
+    : q.order(rankCol, { ascending: true })
+  const { data: ids, error: idsErr } = await q.limit(limit)
   if (idsErr || !ids || ids.length === 0) return []
 
   const idList = (ids as unknown as Array<{ project_id: string }>).map(r => r.project_id)
@@ -180,9 +192,10 @@ export async function fetchLadderProjects(
   if (!projects) return []
 
   const rankMap = new Map<string, number>()
-  for (const r of ids as unknown as Array<{ project_id: string; [k: string]: unknown }>) {
-    rankMap.set(r.project_id, r[rankCol] as number)
-  }
+  ;(ids as unknown as Array<{ project_id: string; [k: string]: unknown }>).forEach((r, i) => {
+    // 'all' view: sequential rank from order; otherwise use MV partition rank.
+    rankMap.set(r.project_id, category === 'all' ? i + 1 : (r[rankCol] as number))
+  })
   // Preserve MV order
   const projectMap = new Map<string, Project>((projects as unknown as Project[]).map(p => [p.id, p]))
   const result = idList
