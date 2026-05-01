@@ -227,12 +227,12 @@ export function ProfilePage() {
             <div>
               <div className="font-mono text-xs tracking-widest" style={{ color: 'var(--gold-500)' }}>// MY AUDITS</div>
               <div className="font-mono text-[10px] mt-0.5" style={{ color: 'var(--text-muted)' }}>
-                Every product you've audited · click to open its dashboard
+                Every product you've auditioned · click to open its dashboard
               </div>
             </div>
             <NavLink to="/submit" className="font-mono text-xs font-medium tracking-wide px-3 py-1.5"
               style={{ background: 'var(--gold-500)', color: 'var(--navy-900)', border: 'none', borderRadius: '2px', textDecoration: 'none' }}>
-              AUDIT A NEW PRODUCT →
+              AUDITION A NEW PROJECT →
             </NavLink>
           </div>
           {loading ? (
