@@ -1,131 +1,190 @@
-# commit.show
+<h1 align="center">commit.show</h1>
 
-**Every commit, on stage. Audited by the engine, auditioned for Scouts.** The
-vibe coding league where every commit is evidence. Audit scores the work,
-Scouts forecast the finish, and the top 20% of each season graduate.
+<p align="center">
+  <strong>Every commit, on stage.</strong><br>
+  The vibe-coding league where every commit is evidence.
+</p>
+
+<p align="center">
+  <a href="https://commit.show"><img src="https://img.shields.io/badge/commit.show-live-F0C040?style=flat-square" alt="commit.show"></a>
+  <a href="https://www.npmjs.com/package/commitshow"><img src="https://img.shields.io/npm/v/commitshow?label=npm%20%2F%20cli&color=F0C040&style=flat-square" alt="cli"></a>
+  <a href="https://github.com/commitshow/cli"><img src="https://img.shields.io/badge/cli-commitshow%2Fcli-0F2040?style=flat-square" alt="cli repo"></a>
+  <img src="https://img.shields.io/badge/season-zero-0F2040?style=flat-square" alt="season">
+  <img src="https://img.shields.io/badge/launch-US%202026-0F2040?style=flat-square" alt="launch">
+</p>
+
+<p align="center">
+  <a href="https://commit.show">Visit commit.show →</a>
+</p>
+
+```
+  ┌──────────────────────────────────────────────────────────┐
+  │  commit.show · Audit report                               │
+  └──────────────────────────────────────────────────────────┘
+
+    your-build                          owner/your-build
+
+                         ╔══════════════╗
+                         ║   82 / 100   ║
+                         ╚══════════════╝
+
+      Audit  42/50  ▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▱▱
+      Scout  26/30  ▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▱▱▱▱
+      Comm.  14/20  ▰▰▰▰▰▰▰▰▰▰▰▰▰▰▱▱▱▱▱▱
+
+    ↑ Tests cover the auth path · CI green for 30 days
+    ↑ Full-stack evidence · 6 tech layers
+    ↑ Brief integrity 9/10 · all 6 sections answered
+    ↓ Accessibility 72 · buttons missing aria-labels
+    ↓ No API rate limiting on /auth endpoint
+
+      Ranked    #3 of 47   Season Zero
+      Tier      Honors     (top 5%)
+                                                       commit.show
+```
+
+```bash
+# audit any public repo from your terminal — no signup
+npx commitshow@latest audit github.com/owner/repo
+```
+
+> [⭐ Star us](https://github.com/commitshow/commitshow) if commit.show changes how you think about shipping vibe-coded work.
+
+---
+
+## What is commit.show
+
+A **structured league** for vibe-coded (AI-assisted) projects. Unlike a popularity
+contest, every project gets a transparent **100-point score** — broken into
+three signals that each catch different kinds of nonsense:
+
+| Pillar | Weight | Caught by |
+|---|---|---|
+| **Audit** | 50% | Claude reads the repo + Lighthouse + GitHub signals · objective evidence |
+| **Scout forecast** | 30% | Tier-gated humans place forecast votes · social proof with skin in the game |
+| **Community signal** | 20% | Views · comments · returning attention · the room reacts |
+
+Run a season for three weeks. The top 20% **graduate** and earn permanent
+status (`Valedictorian` · `Honors` · `Graduate`). The rest land in the
+**Rookie Circle** with the audit notes they need to come back stronger.
 
 > Season Zero · US Launch 2026
 
 ---
 
-## What is commit.show?
+## Three ways in
 
-A structured league platform for vibe-coded (AI-assisted) projects. Unlike
-Product Hunt's popularity contest, commit.show uses a **50% automated analysis +
-30% Scout forecast + 20% community signal** scoring system to determine which
-projects are truly production-ready.
-
-**Graduation** = Hall of Fame + Certification badge + Media exposure (10K
-guaranteed for Valedictorian) + Entry fee refund.
-
----
-
-## Tech Stack
-
-| Layer | Tech |
-|-------|------|
-| Frontend | React 18 + Vite + TypeScript + Tailwind CSS |
-| Backend | Supabase (PostgreSQL + Auth + Edge Functions + Realtime) |
-| AI Analysis | Claude API (claude-sonnet-4-5) |
-| Lighthouse | Google PageSpeed Insights API |
-| Deployment | Cloudflare Pages |
-
----
-
-## Getting Started
-
-### 1. Clone & install
+### 1. Audit your build (no signup)
 
 ```bash
-git clone https://github.com/commitshow/commitshow.git
-cd commitshow
-npm install
+npx commitshow@latest audit github.com/yourname/your-repo
 ```
 
-### 2. Set up environment
+The CLI calls the same Claude-grade audit engine the league runs internally,
+prints the report in your terminal, and (in local mode) drops `.commitshow/audit.md`
+into your repo so your AI coding agent can read it on the next turn. Repo:
+[commitshow/cli](https://github.com/commitshow/cli).
 
-```bash
-cp .env.example .env
-```
+### 2. Audition for the season
 
-Edit `.env`:
-```
-VITE_SUPABASE_URL=https://your-project.supabase.co
-VITE_SUPABASE_ANON_KEY=your_anon_key
-VITE_PAGESPEED_KEY=your_google_api_key   # optional
-```
+Audition at [commit.show/submit](https://commit.show/submit) to enter the
+ladder. You unlock Scout forecasts, weekly recommit deltas, season ranking,
+Backstage prompt extraction, and (if you graduate) the Hall of Fame.
 
-### 3. Set up Supabase
+### 3. Become a Scout
 
-Go to your Supabase dashboard → SQL Editor → paste and run `supabase/schema.sql`,
-then apply migrations under `supabase/migrations/` in chronological order.
-
-### 4. Run dev server
-
-```bash
-npm run dev
-```
+Forecast which projects will graduate. Tier-gated monthly ballots. Hit-rate
+earns activity points and tier promotion. The Scouts who spotted the eventual
+Valedictorian early get permanent **Early Spotter** badges on their profile.
 
 ---
 
-## Deploy to Cloudflare Pages
+## What's in the audit report
 
-1. Push to GitHub
-2. [dash.cloudflare.com](https://dash.cloudflare.com) → Pages → Create a project → Connect GitHub → `commitshow/commitshow`
-3. Build settings:
-   - Framework preset: Vite
-   - Build command: `npm run build`
-   - Build output directory: `dist`
-4. Environment variables:
-   - `VITE_SUPABASE_URL`
-   - `VITE_SUPABASE_ANON_KEY`
-   - `VITE_PAGESPEED_KEY` (optional)
-5. Save and Deploy → `vibe.pages.dev` live
-6. Custom domain: Pages → Custom domains → commit.show
+- **Score** · 100-point total, split into the three pillars above
+- **3 strengths + 2 concerns** · asymmetric by design — concerns don't dominate
+- **Vibe-coder findings** · 7 categories the audit specifically checks for
+  (RLS coverage · API rate limiting · secrets in client code · prompt-injection
+  surface · DB indexes · error tracking · etc.)
+- **Rank + projected tier** · where it stands in this week's window
+- **Δ since last snapshot** · what changed when
+
+Public scoring rubric: [commit.show/rulebook](https://commit.show/rulebook).
+Per-pillar deep dive (logged-in members): [commit.show/audit](https://commit.show/audit).
 
 ---
 
-## Scoring System
+## Live badge
 
-| Component | Weight | Source |
-|-----------|--------|--------|
-| Audit | 50% | GitHub API + PageSpeed + Brief integrity |
-| Scout Forecast | 30% | Forecast votes (uniform value · tiered monthly quota) |
-| Community Signal | 20% | Views · comments · shares · return visits |
-
-**Graduation** = top 20% of each season (relative standing), split into
-Valedictorian (≈0.5%) · Honors (5%) · Graduate (14.5%) · Rookie Circle (rest).
-Basic filter: Live URL + two snapshots in-season + Brief Core Intent submitted.
-
----
-
-## Badge
-
-Once your project is auditioning, drop a live-updating badge into your
-project's own README:
+Once a project is auditioning, drop a live-updating badge into the project's
+own README:
 
 ```markdown
 [![commit.show](https://tekemubwihsjdzittoqf.supabase.co/functions/v1/badge?project=YOUR_PROJECT_ID)](https://commit.show/projects/YOUR_PROJECT_ID)
 ```
 
-Append `&style=pill` for the larger embed. Grab the snippet from the **README
-BADGE** section on your project page after auditioning.
+Append `&style=pill` for the larger embed. Snippet auto-generated on the
+project page after auditioning.
+
+---
+
+## Tech stack
+
+| Layer | Tech |
+|---|---|
+| Frontend | React 18 + Vite + TypeScript + Tailwind |
+| Backend | Supabase (Postgres + Auth + Edge Functions + Realtime) |
+| Audit engine | Claude API · `claude-sonnet-4-6` |
+| Lighthouse | Google PageSpeed Insights API |
+| CLI | [commitshow/cli](https://github.com/commitshow/cli) · npm `commitshow` |
+| Deploy | Cloudflare Pages |
+
+---
+
+## Run it locally
+
+```bash
+git clone https://github.com/commitshow/commitshow.git
+cd commitshow
+npm install
+cp .env.example .env
+# fill in VITE_SUPABASE_URL + VITE_SUPABASE_ANON_KEY (anon key is public-safe)
+npm run dev
+```
+
+Apply schema + migrations to your Supabase project from `supabase/schema.sql`
+and `supabase/migrations/` (chronological).
+
+Deploy: connect to Cloudflare Pages, framework `Vite`, build `npm run build`,
+output `dist`. The platform itself runs on Cloudflare Pages with a single GitHub
+push trigger — no separate `wrangler deploy` step.
 
 ---
 
 ## Roadmap
 
-- **V0 (shipped):** Audition flow + audit engine + score card + feed
-- **V0.5 (shipped):** Auth · Scout tier system · Forecast UI · Artifact Library
-  (Intent-first · GitHub-Trending UX · Apply-to-my-repo) · polymorphic Applaud ·
-  Creator Community (Build Logs · Stacks · Asks · Office Hours) · README badge
-- **V1 (next):** %-based season engine (top 20% auto-graduation) · Scout OR-tier
-  promotion · Stripe audition fee + Library payments · Creator payouts
-- **V1.5:** `commitshow` CLI (`npx commitshow audit`) · Scaffold / BKit · Talent
-  market · Season Partners · MCP server
+| Phase | Status |
+|---|---|
+| **V0** — audition flow · audit engine · score card · feed | shipped |
+| **V0.5** — auth · Scout tiers · forecast UI · Artifact Library · Creator Community | shipped |
+| **V1** — %-based season engine · Stripe audition fee · payouts · season-end automation | next |
+| **V1.5** — CLI install/login · Scaffold/BKit · talent market · MCP server | after V1 |
 
 ---
 
-## License
+## Links
 
-© 2026 commit.show · All rights reserved
+- Platform — <https://commit.show>
+- Rulebook — <https://commit.show/rulebook>
+- CLI repo — <https://github.com/commitshow/cli>
+- npm package — <https://www.npmjs.com/package/commitshow>
+
+---
+
+<p align="center">
+  <strong>Every commit, on stage.</strong>  <a href="https://commit.show">commit.show</a>
+</p>
+
+<p align="center">
+  © 2026 commit.show · All rights reserved
+</p>
