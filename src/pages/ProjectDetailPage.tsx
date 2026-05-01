@@ -203,7 +203,6 @@ export function ProjectDetailPage() {
 
   // ── Section nav config (order = scroll order) ───────────────
   const sections: Array<{ id: string; label: string; ownerOnly?: boolean }> = [
-    { id: 'comments',  label: 'Comments' },
     { id: 'overview',  label: 'Overview' },
     { id: 'analysis',  label: 'Analysis' },
     { id: 'activity',  label: 'Activity' },
@@ -374,6 +373,16 @@ export function ProjectDetailPage() {
           phaseLabel={seasonProgress?.phaseLabel ?? ''}
         />
 
+        {/* ── Comments preview · standalone box right under the score area ──
+              YouTube-mobile pattern applied to ALL viewports: collapsed by
+              default with up to 3 recent comments, tap anywhere to open
+              the full thread in a modal (full-screen on phones, centered
+              dialog on desktop). Lives outside the section grid so it's
+              not buried under tabs. */}
+        <div className="mt-4 mb-6">
+          <ProjectComments projectId={project.id} viewerMemberId={member?.id ?? null} />
+        </div>
+
         {/* ── Sticky section nav (scroll-spy) ── */}
         <SectionNav
           sections={sections}
@@ -393,15 +402,6 @@ export function ProjectDetailPage() {
             parent · earlier symptom: own-project view layout broke
             on the right because of the badge snippet pre. */}
         <div className="grid grid-cols-1 gap-10 min-w-0">
-          {/* COMMENTS · placed first (right under the score) so the room's
-              reaction is visible alongside the build evidence, not buried
-              after every analytical section. YouTube-mobile pattern collapses
-              this to a single preview row on phones (full-screen sheet on tap). */}
-          <section id="comments" className="scroll-mt-28">
-            <SectionHeader label="COMMENTS" hint="What other vibe coders think." />
-            <ProjectComments projectId={project.id} viewerMemberId={member?.id ?? null} />
-          </section>
-
           {/* OVERVIEW */}
           <section id="overview" className="scroll-mt-28">
             <SectionHeader label="OVERVIEW" />

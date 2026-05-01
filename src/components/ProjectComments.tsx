@@ -1,14 +1,14 @@
-// Project comments · YouTube-mobile pattern.
+// Project comments · YouTube-mobile pattern applied to ALL viewports.
 //
-// Mobile (< sm): collapsed preview row showing count + top comment teaser.
-// Tap → full-screen bottom sheet (portal) with the thread + composer.
+// The component renders ONE thing inline: a collapsed preview card showing
+// up to 3 recent comments. Tapping anywhere on the card opens a modal with
+// the full thread + composer.
+//   · Mobile (< sm): the modal is full-screen (true bottom-sheet feel).
+//   · Desktop (≥ sm): the modal is a centered dialog (max-w-2xl, max-h-[80vh]).
 //
-// Desktop (≥ sm): inline thread, always expanded, composer below.
-//
-// MVP scope: top-level comments only (no nested replies, upvotes, edit/delete
-// yet — schema supports them, can layer in later). Self-comment applaud is
-// blocked by the existing trigger; we render the ApplaudButton anyway and let
-// the trigger reject when relevant.
+// MVP scope: top-level comments only (no nested replies / upvotes / edit yet).
+// ApplaudButton on each comment via target_type='comment' (existing
+// polymorphic path · self-applaud blocked by trigger).
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
@@ -29,11 +29,12 @@ interface ProjectCommentsProps {
 }
 
 const MAX_LEN = 1000
+const PREVIEW_COUNT = 3
 
 export function ProjectComments({ projectId, viewerMemberId }: ProjectCommentsProps) {
   const [rows, setRows] = useState<CommentRow[]>([])
   const [loading, setLoading] = useState(true)
-  const [mobileOpen, setMobileOpen] = useState(false)
+  const [modalOpen, setModalOpen] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -43,7 +44,7 @@ export function ProjectComments({ projectId, viewerMemberId }: ProjectCommentsPr
         .from('comments')
         .select('id, text, member_id, created_at, author:members(id, display_name, avatar_url)')
         .eq('project_id', projectId)
-        .is('parent_id', null)        // top-level only for now
+        .is('parent_id', null)
         .order('created_at', { ascending: false })
         .limit(200)
       if (cancelled) return
@@ -58,82 +59,118 @@ export function ProjectComments({ projectId, viewerMemberId }: ProjectCommentsPr
     return () => { cancelled = true }
   }, [projectId])
 
-  const count = rows.length
-  const top = rows[0] ?? null
-
-  // Lock body scroll while the mobile sheet is open.
+  // Lock body scroll while the modal is open.
   useEffect(() => {
-    if (!mobileOpen) return
+    if (!modalOpen) return
     const prev = document.body.style.overflow
     document.body.style.overflow = 'hidden'
     return () => { document.body.style.overflow = prev }
-  }, [mobileOpen])
+  }, [modalOpen])
 
-  const handlePosted = (newRow: CommentRow) => {
-    // Optimistic prepend; real refetch happens implicitly on remount.
-    setRows(prev => [newRow, ...prev])
+  const count = rows.length
+  const previews = rows.slice(0, PREVIEW_COUNT)
+
+  const handlePosted = (row: CommentRow) => {
+    setRows(prev => [row, ...prev])
   }
-
   const handleDeleted = (id: string) => {
     setRows(prev => prev.filter(r => r.id !== id))
   }
 
   return (
     <>
-      {/* ── Mobile collapsed preview row · only < sm ── */}
-      <button
-        type="button"
-        onClick={() => setMobileOpen(true)}
-        className="sm:hidden w-full text-left card-navy px-4 py-3 flex items-start gap-3"
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={() => setModalOpen(true)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setModalOpen(true) }
+        }}
+        aria-label={`Open comments · ${count} total`}
+        className="card-navy text-left transition-colors"
         style={{ borderRadius: '2px', cursor: 'pointer' }}
-        aria-label="Open comments"
+        onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'rgba(240,192,64,0.35)' }}
+        onMouseLeave={(e) => { e.currentTarget.style.borderColor = '' }}
       >
-        <div className="flex-1 min-w-0">
-          <div className="font-mono text-[11px] tracking-widest mb-1.5" style={{ color: 'var(--text-muted)' }}>
-            COMMENTS · {count}
+        <div className="px-4 py-3 flex items-center justify-between"
+             style={{ borderBottom: previews.length > 0 ? '1px solid rgba(255,255,255,0.06)' : 'none' }}>
+          <div className="font-mono text-xs tracking-widest" style={{ color: 'var(--text-secondary)' }}>
+            COMMENTS · <span className="tabular-nums" style={{ color: 'var(--cream)' }}>{count}</span>
           </div>
-          {loading ? (
-            <div className="font-light text-sm" style={{ color: 'var(--text-faint)' }}>
-              loading…
-            </div>
-          ) : top ? (
-            <CommentPreviewLine row={top} />
-          ) : (
-            <div className="font-light text-sm" style={{ color: 'var(--text-secondary)' }}>
-              Be the first to weigh in.
-            </div>
-          )}
+          <div className="font-mono text-[11px] tracking-wide flex items-center gap-1" style={{ color: 'var(--gold-500)' }}>
+            <span>View all</span>
+            <span aria-hidden="true">→</span>
+          </div>
         </div>
-        <div className="font-mono text-base shrink-0" style={{ color: 'var(--text-muted)' }} aria-hidden="true">
-          →
-        </div>
-      </button>
 
-      {/* ── Desktop inline thread · only ≥ sm ── */}
-      <div className="hidden sm:block">
-        <CommentList
-          rows={rows}
-          loading={loading}
-          viewerMemberId={viewerMemberId}
-          onDeleted={handleDeleted}
-        />
-        <div className="mt-4">
-          <Composer
-            projectId={projectId}
-            viewerMemberId={viewerMemberId}
-            onPosted={handlePosted}
-          />
-        </div>
+        {loading ? (
+          <div className="px-4 py-8 text-center font-mono text-xs" style={{ color: 'var(--text-muted)' }}>
+            loading…
+          </div>
+        ) : count === 0 ? (
+          <div className="px-4 py-8 text-center">
+            <div className="font-light text-sm mb-2" style={{ color: 'var(--text-secondary)' }}>
+              No comments yet — be the first to weigh in.
+            </div>
+            <div className="font-mono text-[11px]" style={{ color: 'var(--gold-500)' }}>
+              Tap to open →
+            </div>
+          </div>
+        ) : (
+          <ul>
+            {previews.map((r, i) => (
+              <li
+                key={r.id}
+                className="px-4 py-3 flex items-start gap-3"
+                style={{ borderTop: i === 0 ? 'none' : '1px solid rgba(255,255,255,0.06)' }}
+              >
+                <Avatar name={r.author?.display_name || 'Anon'} url={r.author?.avatar_url ?? null} />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-baseline gap-2 mb-1">
+                    <span className="font-mono text-[11px] tracking-wide" style={{ color: 'var(--gold-500)' }}>
+                      @{(r.author?.display_name || 'Anon').trim()}
+                    </span>
+                    <span className="font-mono text-[10px]" style={{ color: 'var(--text-muted)' }}>
+                      {formatRelative(r.created_at)}
+                    </span>
+                  </div>
+                  <div
+                    className="font-light text-sm leading-snug"
+                    style={{
+                      color: 'var(--text-primary)',
+                      display:           '-webkit-box',
+                      WebkitBoxOrient:   'vertical',
+                      WebkitLineClamp:   2,
+                      overflow:          'hidden',
+                    }}
+                  >
+                    {r.text}
+                  </div>
+                </div>
+              </li>
+            ))}
+            {count > previews.length && (
+              <li
+                className="px-4 py-2.5 text-center font-mono text-[11px] tracking-wide"
+                style={{
+                  color: 'var(--text-muted)',
+                  borderTop: '1px solid rgba(255,255,255,0.06)',
+                }}
+              >
+                +{count - previews.length} more · tap to read
+              </li>
+            )}
+          </ul>
+        )}
       </div>
 
-      {/* ── Mobile bottom sheet portal ── */}
-      {mobileOpen && createPortal(
-        <MobileSheet
+      {modalOpen && createPortal(
+        <Modal
           projectId={projectId}
           viewerMemberId={viewerMemberId}
           rows={rows}
           loading={loading}
-          onClose={() => setMobileOpen(false)}
+          onClose={() => setModalOpen(false)}
           onPosted={handlePosted}
           onDeleted={handleDeleted}
         />,
@@ -143,20 +180,99 @@ export function ProjectComments({ projectId, viewerMemberId }: ProjectCommentsPr
   )
 }
 
-// ── Mobile preview line · author + 1-line teaser ────────────────────
-function CommentPreviewLine({ row }: { row: CommentRow }) {
-  const name = row.author?.display_name?.trim() || 'Anon'
+// ── Modal · full-screen on mobile, centered dialog on desktop ───────
+function Modal({
+  projectId, viewerMemberId, rows, loading, onClose, onPosted, onDeleted,
+}: {
+  projectId:      string
+  viewerMemberId: string | null
+  rows:           CommentRow[]
+  loading:        boolean
+  onClose:        () => void
+  onPosted:       (row: CommentRow) => void
+  onDeleted:      (id: string) => void
+}) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+
   return (
-    <div className="font-light text-sm leading-snug" style={{ color: 'var(--text-primary)' }}>
-      <span className="font-mono text-[11px]" style={{ color: 'var(--gold-500)' }}>@{name}</span>
-      <span className="mx-1.5" style={{ color: 'var(--text-faint)' }}>·</span>
-      <span className="line-clamp-1">{row.text}</span>
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Comments"
+      className="fixed inset-0 z-50 flex sm:items-center sm:justify-center"
+      style={{ background: 'rgba(0,0,0,0.65)' }}
+      onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
+    >
+      <div
+        className="
+          w-full h-full
+          sm:w-auto sm:h-auto sm:max-w-2xl sm:max-h-[80vh] sm:min-h-[400px]
+          flex flex-col
+        "
+        style={{
+          background: 'var(--navy-950)',
+          border:     '1px solid rgba(255,255,255,0.08)',
+          borderRadius: '2px',
+        }}
+      >
+        {/* header */}
+        <div
+          className="flex items-center px-4 py-3 shrink-0"
+          style={{ borderBottom: '1px solid rgba(255,255,255,0.08)', background: 'var(--navy-900)' }}
+        >
+          <div className="font-mono text-xs tracking-widest" style={{ color: 'var(--text-secondary)' }}>
+            COMMENTS · <span className="tabular-nums" style={{ color: 'var(--cream)' }}>{rows.length}</span>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="ml-auto font-mono text-base"
+            style={{
+              background: 'transparent',
+              border:     'none',
+              color:      'var(--text-primary)',
+              padding:    '4px 8px',
+              cursor:     'pointer',
+            }}
+            aria-label="Close comments"
+          >
+            ×
+          </button>
+        </div>
+
+        {/* list */}
+        <div className="flex-1 overflow-y-auto px-3 py-3">
+          <ModalCommentList
+            rows={rows}
+            loading={loading}
+            viewerMemberId={viewerMemberId}
+            onDeleted={onDeleted}
+          />
+        </div>
+
+        {/* composer pinned bottom */}
+        <div
+          className="shrink-0 px-3 pt-3 pb-4"
+          style={{ borderTop: '1px solid rgba(255,255,255,0.08)', background: 'var(--navy-900)' }}
+        >
+          <Composer
+            projectId={projectId}
+            viewerMemberId={viewerMemberId}
+            onPosted={onPosted}
+            autoFocus
+          />
+        </div>
+      </div>
     </div>
   )
 }
 
-// ── Comment list ────────────────────────────────────────────────────
-function CommentList({
+// ── Comment list inside the modal ───────────────────────────────────
+function ModalCommentList({
   rows, loading, viewerMemberId, onDeleted,
 }: {
   rows:           CommentRow[]
@@ -166,17 +282,15 @@ function CommentList({
 }) {
   if (loading) {
     return (
-      <div className="card-navy px-4 py-8 text-center font-mono text-xs"
-           style={{ borderRadius: '2px', color: 'var(--text-muted)' }}>
+      <div className="px-4 py-12 text-center font-mono text-xs" style={{ color: 'var(--text-muted)' }}>
         loading comments…
       </div>
     )
   }
   if (rows.length === 0) {
     return (
-      <div className="card-navy px-4 py-8 text-center"
-           style={{ borderRadius: '2px' }}>
-        <div className="font-mono text-xs mb-1" style={{ color: 'var(--text-muted)' }}>
+      <div className="px-4 py-16 text-center">
+        <div className="font-mono text-xs mb-2" style={{ color: 'var(--text-muted)' }}>
           NO COMMENTS YET
         </div>
         <div className="font-light text-sm" style={{ color: 'var(--text-secondary)' }}>
@@ -186,7 +300,7 @@ function CommentList({
     )
   }
   return (
-    <ul className="card-navy" style={{ borderRadius: '2px', overflow: 'hidden' }}>
+    <ul>
       {rows.map((r, i) => (
         <CommentItem
           key={r.id}
@@ -200,7 +314,6 @@ function CommentList({
   )
 }
 
-// ── Single comment row ──────────────────────────────────────────────
 function CommentItem({
   row, isFirst, viewerMemberId, onDeleted,
 }: {
@@ -211,7 +324,7 @@ function CommentItem({
 }) {
   const [busy, setBusy] = useState(false)
   const isOwn = !!viewerMemberId && row.member_id === viewerMemberId
-  const name = row.author?.display_name?.trim() || 'Anon'
+  const name = (row.author?.display_name || 'Anon').trim()
   const time = useMemo(() => formatRelative(row.created_at), [row.created_at])
 
   const handleDelete = async () => {
@@ -230,10 +343,8 @@ function CommentItem({
 
   return (
     <li
-      className="px-4 py-3 flex items-start gap-3"
-      style={{
-        borderTop: isFirst ? 'none' : '1px solid rgba(255,255,255,0.06)',
-      }}
+      className="px-2 py-3 flex items-start gap-3"
+      style={{ borderTop: isFirst ? 'none' : '1px solid rgba(255,255,255,0.06)' }}
     >
       <Avatar name={name} url={row.author?.avatar_url ?? null} />
       <div className="flex-1 min-w-0">
@@ -257,8 +368,8 @@ function CommentItem({
                 cursor:     busy ? 'wait' : 'pointer',
                 color:      'var(--text-muted)',
               }}
-              onMouseEnter={e => { if (!busy) e.currentTarget.style.color = 'var(--scarlet)' }}
-              onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-muted)' }}
+              onMouseEnter={(e) => { if (!busy) e.currentTarget.style.color = 'var(--scarlet)' }}
+              onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-muted)' }}
             >
               delete
             </button>
@@ -304,8 +415,15 @@ function Composer({
 
   if (!viewerMemberId) {
     return (
-      <div className="card-navy px-4 py-3 font-mono text-xs flex items-center gap-2"
-           style={{ borderRadius: '2px', color: 'var(--text-muted)' }}>
+      <div
+        className="px-4 py-3 font-mono text-xs flex items-center gap-2"
+        style={{
+          border: '1px solid rgba(255,255,255,0.08)',
+          borderRadius: '2px',
+          color: 'var(--text-muted)',
+          background: 'var(--navy-800)',
+        }}
+      >
         <span>Sign in to comment.</span>
         <a
           href="/me"
@@ -341,11 +459,18 @@ function Composer({
   }
 
   return (
-    <div className="card-navy px-3 py-3" style={{ borderRadius: '2px' }}>
+    <div
+      className="px-3 py-3"
+      style={{
+        border: '1px solid rgba(255,255,255,0.08)',
+        borderRadius: '2px',
+        background: 'var(--navy-800)',
+      }}
+    >
       <textarea
         ref={ref}
         value={text}
-        onChange={e => setText(e.target.value)}
+        onChange={(e) => setText(e.target.value)}
         placeholder="Add a comment…"
         rows={2}
         maxLength={MAX_LEN}
@@ -374,88 +499,17 @@ function Composer({
             disabled={!valid || busy}
             className="font-mono text-[11px] tracking-wide px-3 py-1.5"
             style={{
-              background:  valid && !busy ? 'var(--gold-500)' : 'rgba(240,192,64,0.25)',
-              color:       valid && !busy ? 'var(--navy-900)' : 'var(--text-muted)',
-              border:      'none',
-              borderRadius:'2px',
-              cursor:      valid && !busy ? 'pointer' : 'not-allowed',
-              fontWeight:  600,
+              background:   valid && !busy ? 'var(--gold-500)' : 'rgba(240,192,64,0.25)',
+              color:        valid && !busy ? 'var(--navy-900)' : 'var(--text-muted)',
+              border:       'none',
+              borderRadius: '2px',
+              cursor:       valid && !busy ? 'pointer' : 'not-allowed',
+              fontWeight:   600,
             }}
           >
             {busy ? 'Posting…' : 'Post'}
           </button>
         </div>
-      </div>
-    </div>
-  )
-}
-
-// ── Mobile bottom sheet (full-screen on phones) ─────────────────────
-function MobileSheet({
-  projectId, viewerMemberId, rows, loading, onClose, onPosted, onDeleted,
-}: {
-  projectId:      string
-  viewerMemberId: string | null
-  rows:           CommentRow[]
-  loading:        boolean
-  onClose:        () => void
-  onPosted:       (row: CommentRow) => void
-  onDeleted:      (id: string) => void
-}) {
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [onClose])
-
-  return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-label="Comments"
-      className="fixed inset-0 z-50 flex flex-col"
-      style={{ background: 'var(--navy-950)' }}
-    >
-      {/* header */}
-      <div
-        className="flex items-center px-4 py-3 shrink-0"
-        style={{ borderBottom: '1px solid rgba(255,255,255,0.08)', background: 'var(--navy-900)' }}
-      >
-        <button
-          type="button"
-          onClick={onClose}
-          className="font-mono text-base"
-          style={{ background: 'transparent', border: 'none', color: 'var(--text-primary)', padding: '4px 8px', cursor: 'pointer' }}
-          aria-label="Close comments"
-        >
-          ←
-        </button>
-        <div className="ml-2 font-mono text-xs tracking-widest" style={{ color: 'var(--text-secondary)' }}>
-          COMMENTS · {rows.length}
-        </div>
-      </div>
-
-      {/* list */}
-      <div className="flex-1 overflow-y-auto px-3 py-3">
-        <CommentList
-          rows={rows}
-          loading={loading}
-          viewerMemberId={viewerMemberId}
-          onDeleted={onDeleted}
-        />
-      </div>
-
-      {/* composer pinned bottom */}
-      <div
-        className="shrink-0 px-3 pt-3 pb-4"
-        style={{ borderTop: '1px solid rgba(255,255,255,0.08)', background: 'var(--navy-900)' }}
-      >
-        <Composer
-          projectId={projectId}
-          viewerMemberId={viewerMemberId}
-          onPosted={onPosted}
-          autoFocus
-        />
       </div>
     </div>
   )
