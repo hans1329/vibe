@@ -3558,13 +3558,33 @@ Deno.serve(async (req) => {
   //   headroom is the audition-only frontier and shows up as 'max 95' in
   //   captions. This is not a cap (no clamping discontinuity) but a
   //   formula-level reservation of headroom.
+  // ── Score model · Y · 2026-05-02 ──
+  // Walk-on uses Claude.score.current (Audit-pillar quality on 0-100 scale)
+  // capped at WALK_ON_MAX_DISPLAY = 95. The 5pt headroom is the audition
+  // frontier — Brief Phase 1/2 + Scout/Community signals push past 95.
+  //
+  // Audition uses the same Claude.score.current as a FLOOR (so registering
+  // a project never drops the score below its walk-on number) AND lets the
+  // composite (audit*0.5 + scout + community) exceed it once Scout +
+  // Community pillars actually start producing signal. Today both pillars
+  // are 0 so audition === walk-on; once V1 P8 lands they kick in.
+  //
+  // Replaces the earlier `score_auto / 50 × 95` deterministic formula
+  // which threw away every Claude qualitative bonus and made elite-OSS
+  // walk-ons (supabase, etc.) score the same as similar-auto small repos.
   const WALK_ON_MAX_DISPLAY = 95
-  const walkOnDenom = useWebSlots ? 50 : 48
+  const claudeCurrent = (claude.score?.current && claude.score.current > 0)
+    ? Math.round(claude.score.current)
+    : Math.round(score_auto * 2)        // fallback when Claude couldn't grade
+
+  const walkOnScore = Math.min(WALK_ON_MAX_DISPLAY, claudeCurrent)
+
   const scoreTotal = isCliPreview
-    ? Math.min(WALK_ON_MAX_DISPLAY, Math.round((score_auto / walkOnDenom) * WALK_ON_MAX_DISPLAY))
-    : (claude.score?.current && claude.score.current > 0
-        ? Math.round(claude.score.current)
-        : score_auto)
+    ? walkOnScore
+    : Math.min(100, Math.max(
+        walkOnScore,                                                   // floor: never drop below walk-on
+        Math.round(claudeCurrent * 0.5) + 0 /* score_forecast */ + 0   /* score_community · TODO V1 P8 */,
+      ))
 
   // Axis-level delta
   const currentAxisMap: Record<string, number> = {}

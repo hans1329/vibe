@@ -141,23 +141,88 @@ project page after auditioning.
 
 ---
 
-## Run it locally
+## Install
+
+Requires **Node 20+** and a Supabase project (anon key is public-safe; the
+service-role key stays server-side, only used by Edge Functions).
 
 ```bash
 git clone https://github.com/commitshow/commitshow.git
 cd commitshow
 npm install
 cp .env.example .env
-# fill in VITE_SUPABASE_URL + VITE_SUPABASE_ANON_KEY (anon key is public-safe)
-npm run dev
 ```
 
-Apply schema + migrations to your Supabase project from `supabase/schema.sql`
-and `supabase/migrations/` (chronological).
+Edit `.env`:
 
-Deploy: connect to Cloudflare Pages, framework `Vite`, build `npm run build`,
-output `dist`. The platform itself runs on Cloudflare Pages with a single GitHub
-push trigger — no separate `wrangler deploy` step.
+```
+VITE_SUPABASE_URL=https://<project>.supabase.co
+VITE_SUPABASE_ANON_KEY=<anon key from supabase dashboard>
+VITE_PAGESPEED_KEY=<google PageSpeed key · optional>
+```
+
+Apply the database schema and ordered migrations:
+
+```bash
+psql "$DATABASE_URL" -f supabase/schema.sql
+for f in supabase/migrations/*.sql; do psql "$DATABASE_URL" -f "$f"; done
+```
+
+Edge Functions (audit-preview, analyze-project, etc.) deploy through the
+Supabase CLI:
+
+```bash
+npx supabase functions deploy analyze-project audit-preview discover-mds badge apply-artifact
+```
+
+## Usage
+
+### Local dev
+
+```bash
+npm run dev          # Vite dev server on http://localhost:5173
+npm run build        # tsc + vite build → dist/
+npm run preview      # serve dist/ locally
+npx tsc --noEmit     # type check (run before push)
+```
+
+### Audit a project from the terminal
+
+```bash
+npx commitshow@latest audit github.com/owner/repo            # markdown report
+npx commitshow@latest audit github.com/owner/repo --json     # full JSON envelope
+```
+
+The CLI lives in [github.com/commitshow/cli](https://github.com/commitshow/cli)
+and ships separately on npm as the `commitshow` package.
+
+### Audit from any HTTP client (no shell required)
+
+```bash
+curl 'https://api.commit.show/audit?repo=github.com/owner/repo&format=md'
+curl 'https://api.commit.show/audit?repo=github.com/owner/repo&format=json'
+```
+
+OpenAPI 3.1 spec: <https://api.commit.show/openapi.json>.
+
+### Use inside an MCP-aware editor (Claude Desktop · Cursor · Cline)
+
+```jsonc
+{
+  "mcpServers": {
+    "commitshow": {
+      "command": "npx",
+      "args": ["-y", "commitshow-mcp"]
+    }
+  }
+}
+```
+
+### Deploy
+
+Connect this repo to Cloudflare Pages — framework `Vite`, build command
+`npm run build`, output directory `dist`. Every `git push` to `main` triggers
+a fresh deploy; no `wrangler deploy` step needed.
 
 ---
 

@@ -1,0 +1,54 @@
+# CI · runs on every push and PR
+#
+# Cloudflare Pages already builds and deploys main on push, so this workflow
+# is intentionally a fast 'is the code shippable' gate rather than a deploy
+# pipeline. It runs:
+#   · type check (npx tsc --noEmit)
+#   · production build (npm run build)
+# That mirrors what Cloudflare Pages does locally and catches type errors
+# before the Pages build burns minutes.
+#
+# Edge Functions and DB migrations are deployed out-of-band (Supabase CLI /
+# psql) so this CI doesn't touch them.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Type check + build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type check
+        run: npx tsc --noEmit
+
+      - name: Build
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || 'https://placeholder.supabase.co' }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY || 'placeholder' }}
+        run: npm run build
