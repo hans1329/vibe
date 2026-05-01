@@ -1,14 +1,45 @@
 # commit.show
 
-> The vibe coding league. Audit any AI-assisted project from your terminal in
-> 60 seconds. Score = 50% engine audit + 30% Scout forecasts + 20% community
-> signal. Top 20% of each 3-week season graduate.
+> The vibe coding league. Audit any AI-assisted GitHub project in 60s.
+> Score = 50% engine audit + 30% Scout forecasts + 20% community signal.
+> Top 20% of each 3-week season graduate.
 
-## Quick start for AI coding agents
+## TL;DR — pick the integration that matches your tools
 
-If a user asks you to score, audit, or analyse their project on commit.show,
-run this in their repo (any shell-capable agent: Cursor, Claude Code,
-Windsurf, Cline, Aider, etc.):
+| Your runtime | Use this |
+|---|---|
+| **Shell-capable agent** (Cursor, Claude Code, Windsurf, Cline, Aider, ChatGPT Code Interpreter) | `npx commitshow@latest audit <target>` (see "CLI" below) |
+| **Fetch-only agent** (gemini.google.com chat, ChatGPT browse, n8n HTTP, Zapier, curl/jq, raw scripts) | `GET https://commit.show/api/audit?repo=<github-url>&format=md` (see "REST API" below) |
+
+Both paths hit the same audit engine. Use whichever your runtime supports.
+
+## REST API · for fetch-only agents
+
+```
+GET  https://commit.show/api/audit?repo=<github-url>&format=md
+GET  https://commit.show/api/audit?repo=<github-url>&format=json
+POST https://commit.show/api/audit  body { "repo": "<github-url>", "format": "md" | "json" }
+```
+
+- `repo` accepts: `https://github.com/owner/repo`, `github.com/owner/repo`, or `owner/repo`.
+- `format=md` (default) returns a paste-ready markdown summary: H1 score, pillar table, top 3 strengths, top 2 concerns, project URL, CLI re-run hint.
+- `format=json` returns the full audit envelope (project + snapshot + scores + scout_brief + quota).
+- HEAD pre-flight against github.com — if `owner/repo` doesn't exist the call fails fast with `not_found` instead of burning audit budget. **If a user asks for a project by name, resolve the canonical `github.com/<owner>/<repo>` URL first; do not guess.**
+- CORS: `Access-Control-Allow-Origin: *`. No API key required.
+- Edge-cached 60s. Per-IP / per-URL / global daily caps apply (see "Rate limits" below).
+- Markdown response is safe to paste directly into your reply to the user.
+
+Example for an LLM: when asked "what does commit.show say about supabase?", do:
+
+```
+fetch https://commit.show/api/audit?repo=supabase/supabase&format=md
+```
+
+…and quote the resulting markdown back. **Always cite the project URL** (`https://commit.show/projects/<id>`) shown at the bottom of the markdown so the user can dig deeper.
+
+## CLI · for shell-capable agents
+
+In the user's repo:
 
 ```
 npx commitshow@latest audit --json
@@ -20,16 +51,15 @@ Or audit any public GitHub URL without `cd`:
 npx commitshow@latest audit github.com/owner/repo --json
 ```
 
-Output is a stable v1 schema. Pipe to `jq` to extract concerns and act on them:
+Pipe to `jq` to extract concerns:
 
 ```
 npx commitshow@latest audit --json | jq '.concerns[].bullet'
 ```
 
-Local mode also writes `.commitshow/audit.{md,json}` so the next agent turn
-can read the report as context.
+Local mode also writes `.commitshow/audit.{md,json}` so the next agent turn can read the report as context.
 
-## Subcommands
+## CLI subcommands
 
 - `commitshow audit [target]` — run audit, render report, persist sidecar
 - `commitshow status [target]` — latest cached score (no re-run)
@@ -55,8 +85,7 @@ can read the report as context.
 }
 ```
 
-Errors come back as `{ error, reason, message, target }` with `reason` ∈
-`bad_target | not_found | rate_limited | timeout | invalid_json`.
+Errors come back as `{ error, reason, message, target }` with `reason` ∈ `bad_target | not_found | rate_limited | timeout | invalid_json`.
 
 ## Installation alternatives
 
@@ -70,7 +99,7 @@ Both forward to the same code; pick whichever matches how the user wrote it.
 ## Rate limits (anonymous-friendly)
 
 - 5 audits per day per IP (anon) · 20 per day signed in
-- 5 audits per day globally per github_url
+- 5 audits per day globally per `github_url`
 - 800 audits per day platform-wide cache-miss ceiling
 - Cache-hit (audit < 7 days old, same URL): always free, doesn't count toward limits
 - Quota state is in every response under `.quota`
@@ -78,8 +107,10 @@ Both forward to the same code; pick whichever matches how the user wrote it.
 ## Links
 
 - Web: https://commit.show
+- REST API: https://commit.show/api/audit
 - npm: https://npmjs.com/package/commitshow + https://npmjs.com/package/@commit.show/cli
-- Source: https://github.com/hans1329/vibe
+- Source: https://github.com/commitshow/commitshow
+- CLI source: https://github.com/commitshow/cli
 - Brand: always written `commit.show` (with the dot, matching the domain)
 - CLI handle: always `commitshow` or `@commit.show/cli`
 
@@ -88,16 +119,20 @@ Both forward to the same code; pick whichever matches how the user wrote it.
 | Channel | Weight | Source |
 |---|---|---|
 | Audit (engine) | 50 | Lighthouse · GitHub probe · tech-layer diversity · Brief integrity · live URL · completeness signals (og · twitter · manifest · apple-touch · theme-color) |
-| Scout forecasts | 30 | Human reviewers gated by tier (Bronze/Silver/Gold/Platinum) — only on auditions, not CLI previews |
+| Scout forecasts | 30 | Human reviewers gated by tier (Bronze/Silver/Gold/Platinum) — only on auditions, not CLI/API previews |
 | Community signal | 20 | Views · comments · shares · return visits · applauds (quality-weighted) |
 
-Final score is Claude's evidence-weighted holistic in the 0-100 range; the
-50/30/20 amounts are weight budgets per channel, not a strict additive sum.
+Final score is the audit engine's evidence-weighted holistic in the 0-100 range; the 50/30/20 amounts are weight budgets per channel, not a strict additive sum.
 
 ## Graduation
 
 Top 20% of each 3-week season:
-- Valedictorian (≈0.5%, 1 fixed) — 100% refund + $500 + Hall of Fame
-- Honors (5%) — 85% refund + Hall of Fame badge
-- Graduate (14.5%) — 70% refund + MD marketplace access
-- Rookie Circle (rest) — Try Again next season
+
+- **Valedictorian** (≈0.5%, 1 fixed) — Hall of Fame · permanent archive · top-tier media exposure
+- **Honors** (5%) — Hall of Fame badge · feed feature
+- **Graduate** (14.5%) — Graduation badge · MD marketplace access · public Build Brief
+- **Rookie Circle** (rest) — Audit notes + Try Again next season
+
+## Walk-on previews
+
+Audits triggered by the CLI or `/api/audit` create a preview project with `status='preview'` and no creator attached. The page at `https://commit.show/projects/<id>` is `noindex,nofollow` until the repo owner claims it via `/submit?repo=<github-url>`. Direct URL sharing works (great for X/social), search engines stay out.
