@@ -366,6 +366,11 @@ export function AnalysisResultCard({
           isOwner={isOwner}
           projectName={projectName}
           githubUrl={githubUrl}
+          scoreTotal={typeof result.score_total === 'number' ? result.score_total : null}
+          scoreAuto={typeof result.score_auto === 'number' ? result.score_auto : null}
+          scoreForecast={typeof result.score_forecast === 'number' ? result.score_forecast : null}
+          scoreCommunity={typeof result.score_community === 'number' ? result.score_community : null}
+          tldr={typeof r.tldr === 'string' ? r.tldr : null}
           onReanalyze={isOwner && projectId && onReanalyzed ? handleReanalyze : null}
           rerunBusy={rerunBusy}
         />
@@ -851,7 +856,9 @@ const SCOUT_VISIBLE_WEAKNESSES = 3
 
 function ScoutBriefSection({
   brief, hasFullAccess, viewerTier, isOwner,
-  projectName, githubUrl, onReanalyze, rerunBusy,
+  projectName, githubUrl,
+  scoreTotal, scoreAuto, scoreForecast, scoreCommunity, tldr,
+  onReanalyze, rerunBusy,
 }: {
   brief: { strengths: ScoutBriefBullet[]; weaknesses: ScoutBriefBullet[] }
   hasFullAccess: boolean
@@ -859,6 +866,11 @@ function ScoutBriefSection({
   isOwner: boolean
   projectName: string | null
   githubUrl: string | null
+  scoreTotal:     number | null
+  scoreAuto:      number | null
+  scoreForecast:  number | null
+  scoreCommunity: number | null
+  tldr:           string | null
   onReanalyze: (() => void) | null    // null = hide button (visitor or no projectId)
   rerunBusy: boolean
 }) {
@@ -869,19 +881,67 @@ function ScoutBriefSection({
   const [copied, setCopied] = useState(false)
 
   const handleCopyPrompt = async () => {
-    const lines: string[] = []
     const target = projectName && githubUrl
       ? `${projectName} (${githubUrl})`
       : (projectName || githubUrl || 'this project')
-    lines.push(`I'm working on ${target}.`)
+    const slug = (() => {
+      if (!githubUrl) return null
+      const m = githubUrl.match(/github\.com\/([^/\s]+)\/([^/\s?#]+?)(?:\.git)?\/?$/i)
+      return m ? `${m[1]}/${m[2].replace(/\.git$/, '')}` : null
+    })()
+    const lines: string[] = []
+
+    lines.push('# commit.show audit · fix request')
     lines.push('')
-    lines.push('commit.show audited it and flagged these concerns:')
+    lines.push(`**Project**: ${target}`)
+    if (scoreTotal !== null) {
+      const breakdown: string[] = []
+      if (scoreAuto      !== null) breakdown.push(`audit ${scoreAuto}/50`)
+      if (scoreForecast  !== null) breakdown.push(`scout ${scoreForecast}/30`)
+      if (scoreCommunity !== null) breakdown.push(`community ${scoreCommunity}/20`)
+      const tail = breakdown.length > 0 ? ` (${breakdown.join(' · ')})` : ''
+      lines.push(`**Current score**: ${scoreTotal}/100${tail}`)
+    }
+    if (tldr) {
+      const trimmed = tldr.length > 280 ? tldr.slice(0, 277) + '…' : tldr
+      lines.push(`**Engine TL;DR**: ${trimmed}`)
+    }
+    lines.push('')
+
+    lines.push('## Concerns to address (priority order — security and correctness first)')
     lines.push('')
     visibleWeaknesses.forEach((b, i) => {
       lines.push(`${i + 1}. [${b.axis}] ${b.bullet}`)
     })
     lines.push('')
-    lines.push("For each, propose the smallest minimal patch and apply it. After you're done, I'll re-run `npx commitshow audit` to verify the score moved.")
+
+    if (strengths.length > 0) {
+      lines.push("## Strengths to preserve (don't break these — they're carrying the score)")
+      lines.push('')
+      strengths.slice(0, 5).forEach((s) => {
+        lines.push(`- [${s.axis}] ${s.bullet}`)
+      })
+      lines.push('')
+    }
+
+    lines.push('## Rules of engagement')
+    lines.push('')
+    lines.push('- Smallest minimal patch per concern. No refactors, no new dependencies, no behavior changes outside the flagged scope.')
+    lines.push('- If a concern\'s exact file path or fix isn\'t obvious from the bullet, run `npx commitshow audit'
+      + (slug ? ` ${slug}` : '')
+      + ' --json` and inspect `rich_analysis` for the full evidence pack — paths, line counts, axis breakdown.')
+    lines.push('- Stop and ask before doing anything that conflicts with the strengths above (e.g. don\'t replace a working pattern just to reach a metric).')
+    lines.push('- Apply concerns in order. Skip and explain if a concern is genuinely not actionable in this repo.')
+    lines.push('')
+
+    lines.push('## When you\'re done')
+    lines.push('')
+    lines.push('1. Run `npx commitshow audit'
+      + (slug ? ` ${slug}` : '')
+      + '` to re-score.')
+    lines.push('2. Report the new total + which concerns dropped + any new ones the audit surfaced.')
+    lines.push('3. If the score didn\'t move, look at `.commitshow/audit.md` (written by the CLI) for the new evidence and decide the next iteration.')
+
     const prompt = lines.join('\n')
     try {
       await navigator.clipboard.writeText(prompt)
