@@ -229,6 +229,19 @@ export function ProjectDetailPage() {
           ← BACK TO PROJECTS
         </button>
 
+        {/* ── Walk-on preview banner · status='preview' + creator_id=null ──
+              CLI / web preview audits create a public projects row so the
+              cache and shareable URL keep working, but the repo owner
+              hasn't claimed the entry. Make that obvious so a viewer who
+              found the URL doesn't read it as an endorsed audition, and
+              give the owner an obvious path to upgrade. */}
+        {project.status === 'preview' && !project.creator_id && (
+          <UnclaimedPreviewBanner
+            githubUrl={project.github_url}
+            projectName={project.project_name}
+          />
+        )}
+
         {/* ── Compact Hero (description moved to Overview pullquote) ── */}
         <header className="card-navy overflow-hidden mb-4 relative" style={{ borderRadius: '2px' }}>
           {isOwner && (
@@ -816,6 +829,72 @@ function EmptyBox({ label }: { label: string }) {
       }}
     >
       {label}
+    </div>
+  )
+}
+
+// Walk-on preview · projects row created by the CLI / web preview audit
+// without an account. The page works (so the URL stays shareable for the
+// person who triggered the audit), but a visitor needs to know:
+//   1. This is not an endorsed audition — the owner hasn't claimed it.
+//   2. The owner can claim and turn it into a real audition in one click.
+// Also installs a robots noindex meta on the document so this page doesn't
+// surface in search results — direct URL still works, but a Google query
+// for the repo name shouldn't pull up an unclaimed walk-on score.
+function UnclaimedPreviewBanner({
+  githubUrl, projectName,
+}: { githubUrl: string | null; projectName: string }) {
+  useEffect(() => {
+    // Owner-claim path expects the github URL as a query param.
+    const id = 'cs-noindex-meta'
+    let meta = document.querySelector<HTMLMetaElement>(`meta[name="robots"]#${id}`)
+    if (!meta) {
+      meta = document.createElement('meta')
+      meta.name = 'robots'
+      meta.id = id
+      document.head.appendChild(meta)
+    }
+    meta.content = 'noindex,nofollow'
+    return () => { meta?.remove() }
+  }, [])
+
+  const claimHref = githubUrl
+    ? `/submit?repo=${encodeURIComponent(githubUrl)}`
+    : '/submit'
+
+  return (
+    <div
+      className="card-navy mb-4 px-4 py-3 flex items-start gap-3 flex-wrap"
+      style={{
+        borderRadius: '2px',
+        background: 'rgba(240,192,64,0.06)',
+        border: '1px solid rgba(240,192,64,0.35)',
+      }}
+    >
+      <div className="flex-1 min-w-[220px]">
+        <div className="font-mono text-[11px] tracking-widest mb-1" style={{ color: 'var(--gold-500)' }}>
+          WALK-ON PREVIEW · UNCLAIMED
+        </div>
+        <div className="font-light text-sm leading-snug" style={{ color: 'var(--text-primary)' }}>
+          This audit was triggered from the CLI on a public repo before
+          {' '}<span className="font-mono">{projectName}</span>'s owner registered.
+          The score is real, but it isn't an endorsed audition until claimed.
+        </div>
+      </div>
+      <a
+        href={claimHref}
+        className="font-mono text-xs font-medium tracking-wide px-3 py-1.5 whitespace-nowrap shrink-0 self-center"
+        style={{
+          background: 'var(--gold-500)',
+          color: 'var(--navy-900)',
+          border: 'none',
+          borderRadius: '2px',
+          textDecoration: 'none',
+          fontWeight: 600,
+        }}
+      >
+        Claim this repo →
+      </a>
     </div>
   )
 }
