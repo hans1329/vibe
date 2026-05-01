@@ -9,7 +9,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { IconBell, IconApplaud, IconForecast } from './icons'
+import { IconBell, IconApplaud, IconForecast, IconComment } from './icons'
 import {
   fetchNotifications, fetchUnreadCount, markRead, markAllRead,
   subscribeNotifications, destinationFor, titleFor,
@@ -167,8 +167,12 @@ export function NotificationBell({ recipientId }: Props) {
 
 function NotificationRowView({ n, onClick }: { n: NotificationRow; onClick: () => void }) {
   const unread = !n.read_at
-  const KindIcon = n.kind === 'applaud' ? IconApplaud : IconForecast
-  const tone = n.kind === 'applaud' ? 'var(--gold-500)' : '#00D4AA'
+  const KindIcon = n.kind === 'applaud' ? IconApplaud
+                 : n.kind === 'comment' ? IconComment
+                 : IconForecast
+  const tone     = n.kind === 'applaud' ? 'var(--gold-500)'
+                 : n.kind === 'comment' ? 'var(--cream)'
+                 : '#00D4AA'
   const initial = (n.actor_display_name ?? '?').slice(0, 1).toUpperCase()
 
   return (

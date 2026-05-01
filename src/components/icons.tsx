@@ -140,6 +140,16 @@ export function IconApplaud(p: IconProps) {
   )
 }
 
+export function IconComment(p: IconProps) {
+  // Chat bubble line · used for comment notifications
+  return (
+    <BaseIcon {...p}>
+      <path d="M4 5h16a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1h-9l-5 4v-4H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z" />
+      <path d="M8 10h8M8 13h5" />
+    </BaseIcon>
+  )
+}
+
 // ── Format icons (Library · Discovery) ──────────────────────
 // Each format gets its own metaphor so they're distinguishable at a glance.
 

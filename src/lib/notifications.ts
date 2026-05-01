@@ -7,7 +7,7 @@
 
 import { supabase } from './supabase'
 
-export type NotificationKind = 'applaud' | 'forecast'
+export type NotificationKind = 'applaud' | 'forecast' | 'comment'
 
 export interface NotificationRow {
   id:                    string
@@ -105,6 +105,13 @@ export function titleFor(n: NotificationRow): string {
     const count = (n.metadata as { vote_count?: number } | null)?.vote_count
     const castLabel = count && count > 1 ? `${count} forecasts` : 'a forecast'
     return `${actor} cast ${castLabel} on ${n.project_name ?? 'your project'}`
+  }
+  if (n.kind === 'comment') {
+    const meta = (n.metadata as { is_reply?: boolean; preview?: string } | null) ?? {}
+    const isReply = !!meta.is_reply
+    const preview = meta.preview ? `: "${truncate(meta.preview, 60)}"` : ''
+    if (isReply) return `${actor} replied to your comment${preview}`
+    return `${actor} commented on ${n.project_name ?? 'your project'}${preview}`
   }
   return `${actor} interacted with your content`
 }
