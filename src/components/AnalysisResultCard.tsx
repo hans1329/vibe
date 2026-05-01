@@ -116,13 +116,29 @@ function LighthouseCard({ lh, githubOk, liveUrl }: { lh: AnalysisResult['lh']; g
     return v === 0 || isNA(v)
   })
 
+  // Mean across the assessed categories, ignoring any -1 sentinels. Shown
+  // as a small anchor next to the heading so visitors don't misread a
+  // single 100 (e.g. Best Practices on a clean static site) as 'Lighthouse
+  // = 100'. Google deliberately does not publish a unified Lighthouse
+  // score; we mirror that by labeling the strip as 4 categories and
+  // surfacing the average — never a 'Lighthouse total'.
+  const assessed = metrics.map(m => lh[m.key] as number).filter(v => !isNA(v))
+  const avg = assessed.length > 0
+    ? Math.round(assessed.reduce((a, b) => a + b, 0) / assessed.length)
+    : null
+
   return (
     <div>
-      <div className="font-mono text-xs tracking-widest mb-3" style={{ color: 'var(--gold-500)' }}>
-        // LIVE PRODUCT AUDIT
-        <span className="ml-2" style={{ color: 'rgba(248,245,238,0.35)' }}>
-          Mobile strategy · from the public live URL
-        </span>
+      <div className="font-mono text-xs tracking-widest mb-2 flex items-baseline gap-2 flex-wrap" style={{ color: 'var(--gold-500)' }}>
+        <span>// GOOGLE LIGHTHOUSE · MOBILE · 4 CATEGORIES</span>
+        {avg !== null && (
+          <span style={{ color: 'rgba(248,245,238,0.45)' }}>
+            avg {avg} · per category below
+          </span>
+        )}
+      </div>
+      <div className="font-mono text-[10px] mb-3" style={{ color: 'rgba(248,245,238,0.35)' }}>
+        Each category is independent — Google does not publish a single 'Lighthouse score'. A 100 in one category is not a 100 overall.
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
