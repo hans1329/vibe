@@ -19,17 +19,25 @@ export interface ImagePreset {
   maxWidth:   number
   maxHeight:  number
   maxBytes:   number
+  /** When true, center-crop source to a square (avatar). */
   square:     boolean
+  /** When set (and square=false), center-crop source to this width/height
+   *  ratio so the encoded file matches the social-card / picker preview
+   *  exactly. Without this, the pipeline only 'fits' the image inside the
+   *  box and the picker's objectFit:cover preview would diverge from the
+   *  actual file shape on portrait inputs. */
+  aspectRatio?: number
   quality:    number
 }
 
 export const THUMBNAIL_PRESET: ImagePreset = {
-  bucket:    'project-thumbnails',
-  maxWidth:  1200,
-  maxHeight: 630,       // OG / Open Graph 1.91:1
-  maxBytes:  524_288,   // 512 KB
-  square:    false,
-  quality:   0.85,
+  bucket:      'project-thumbnails',
+  maxWidth:    1200,
+  maxHeight:   630,       // OG / Open Graph 1.91:1
+  maxBytes:    524_288,   // 512 KB
+  square:      false,
+  aspectRatio: 1200 / 630,
+  quality:     0.85,
 }
 
 export const AVATAR_PRESET: ImagePreset = {
@@ -113,7 +121,28 @@ export async function processImage(file: File, preset: ImagePreset): Promise<Pro
     sy = Math.round((sh - side) / 2)
     sw = side; sh = side
     targetW = targetH = Math.min(preset.maxWidth, side)
+  } else if (preset.aspectRatio) {
+    // Center-crop source to the preset's aspect ratio so the encoded file
+    // matches what the picker preview (objectFit:cover) shows. Then scale
+    // to maxWidth × maxHeight while keeping the ratio exact.
+    const targetR = preset.aspectRatio
+    const srcR    = sw / sh
+    if (srcR > targetR) {
+      // Source wider than target → trim horizontally.
+      const newSw = Math.round(sh * targetR)
+      sx = Math.round((sw - newSw) / 2)
+      sw = newSw
+    } else if (srcR < targetR) {
+      // Source taller than target → trim vertically.
+      const newSh = Math.round(sw / targetR)
+      sy = Math.round((sh - newSh) / 2)
+      sh = newSh
+    }
+    const r = Math.min(preset.maxWidth / sw, preset.maxHeight / sh, 1)
+    targetW = Math.round(sw * r)
+    targetH = Math.round(sh * r)
   } else {
+    // No ratio constraint — preserve aspect, fit inside max box.
     const r = Math.min(
       preset.maxWidth  / img.naturalWidth,
       preset.maxHeight / img.naturalHeight,
