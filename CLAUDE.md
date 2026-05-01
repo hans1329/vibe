@@ -20,10 +20,10 @@ PRD 버전: v2 (2026-04-24) — v1 통합 기획서 (2026-04-19 + Creator Commun
 - **레포**: https://github.com/commitshow/commitshow (이전: hans1329/vibe · 2026-05-01 transfer)
 - **CLI 레포**: https://github.com/commitshow/cli (분사 · npm `commitshow` 패키지)
 - **Supabase URL**: https://tekemubwihsjdzittoqf.supabase.co
-- **배포 대상**: Cloudflare Pages (GitHub `commitshow/commitshow` main 자동 빌드 · Pages 프로젝트 `vibe`)
-- **Pages URL**: https://vibe-cxf.pages.dev
+- **배포 대상**: Cloudflare Pages (GitHub `commitshow/commitshow` main 자동 빌드 · Pages 프로젝트 `commitshow`)
+- **Pages URL**: https://commitshow.pages.dev
 - **도메인**: commit.show + www.commit.show (Pages Custom Domain 연결 완료)
-- **참고**: 별도 Workers 스크립트 `vibe` 도 존재하나 (`vibe.hans1329.workers.dev`) 실제 트래픽 안 받음. `wrangler deploy` 는 사용 안 함.
+- **참고**: 옛 Pages 프로젝트 `vibe` (vibe-cxf.pages.dev) 는 2026-05-01 transfer 후 신규 `commitshow` 프로젝트로 이전 · 옛 프로젝트는 1-2일 보험 후 삭제 예정. `wrangler deploy` 는 사용 안 함.
 - **미국 런칭**, 법인 설립 완료 (구조 세부는 INTERNAL.md §1)
 
 ### 1-A. v2 (2026-04-24) 핵심 방향 — v1.8 대비 delta 7가지
