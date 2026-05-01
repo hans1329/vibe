@@ -23,14 +23,14 @@ const TONE_COLOR: Record<LaneCardAccent['tone'], string> = {
 }
 
 const GRADE_COLORS: Record<string, string> = {
-  Rookie: '#6B7280', Builder: '#60A5FA', Maker: '#00D4AA',
+  Rookie: '#9CA3AF', Builder: '#60A5FA', Maker: '#00D4AA',
   Architect: '#A78BFA', 'Vibe Engineer': '#F0C040', Legend: '#C8102E',
 }
 
 export function FeaturedLaneCard({ project: p, accent, hideScore, creator }: FeaturedLaneCardProps) {
   const navigate = useNavigate()
   const tone = TONE_COLOR[accent.tone]
-  const gradeColor = GRADE_COLORS[p.creator_grade] || '#6B7280'
+  const gradeColor = GRADE_COLORS[p.creator_grade] || '#9CA3AF'
   const creatorLoading = !!p.creator_id && creator === undefined
   const creatorName = resolveCreatorName({
     display_name: creator?.display_name,

@@ -9,7 +9,7 @@ import { resolveCreatorName } from '../lib/creatorName'
 // the dense pump.fun grid when the goal is savoring, not scanning.
 
 const GRADE_COLORS: Record<string, string> = {
-  Rookie: '#6B7280', Builder: '#60A5FA', Maker: '#00D4AA',
+  Rookie: '#9CA3AF', Builder: '#60A5FA', Maker: '#00D4AA',
   Architect: '#A78BFA', 'Vibe Engineer': '#F0C040', Legend: '#C8102E',
 }
 
@@ -38,7 +38,7 @@ export function ProjectCardEditorial({
   const navigate = useNavigate()
   const handleOpen = () => onOpen ? onOpen(p) : navigate(`/projects/${p.id}`)
 
-  const gc = GRADE_COLORS[p.creator_grade] || '#6B7280'
+  const gc = GRADE_COLORS[p.creator_grade] || '#9CA3AF'
   const sc = hideScore ? 'rgba(255,255,255,0.35)' : scoreColor(p.score_total)
   const metaBits = (p.tech_layers ?? []).slice(0, 3).map(t => t.toUpperCase())
   if (metaBits.length === 0 && p.creator_grade) metaBits.push(p.creator_grade.toUpperCase())
