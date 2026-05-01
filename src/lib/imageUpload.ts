@@ -153,28 +153,57 @@ export async function processImage(file: File, preset: ImagePreset): Promise<Pro
   }
 
   const canvas = document.createElement('canvas')
-  canvas.width = targetW
-  canvas.height = targetH
   const ctx = canvas.getContext('2d')
   if (!ctx) throw new Error('Canvas 2D context unavailable in this browser.')
-  ctx.imageSmoothingEnabled = true
-  ctx.imageSmoothingQuality = 'high'
-  ctx.drawImage(img, sx, sy, sw, sh, 0, 0, targetW, targetH)
 
+  // Two-pass fit-under-cap pipeline:
+  //   pass 1 — encode at preset quality, drop quality in 0.1 steps down to 0.2
+  //   pass 2 — if still over the cap, shrink canvas to 75% / 56% / 42% / 32% /
+  //            24% of the target dimensions and retry the quality ladder. The
+  //            same source crop (sx/sy/sw/sh) is preserved each pass so the
+  //            framing doesn't shift; only the destination resolution drops.
+  // Most photos clear pass 1 at ≥0.6. Dense screenshots / UI captures with
+  // sharp gradients are the ones that survive a 1200×630 box at 0.2 quality
+  // and still bust 512KB; pass 2 is the safety net for them.
+  const drawAt = (w: number, h: number) => {
+    canvas.width = w
+    canvas.height = h
+    ctx.imageSmoothingEnabled = true
+    ctx.imageSmoothingQuality = 'high'
+    ctx.drawImage(img, sx, sy, sw, sh, 0, 0, w, h)
+  }
+
+  drawAt(targetW, targetH)
   let quality = preset.quality
   let blob = await canvasToBlob(canvas, 'image/webp', quality)
-  while (blob.size > preset.maxBytes && quality > 0.4) {
-    quality -= 0.1
+  while (blob.size > preset.maxBytes && quality > 0.2) {
+    quality = Math.max(0.2, quality - 0.1)
     blob = await canvasToBlob(canvas, 'image/webp', quality)
   }
+
+  let finalW = targetW, finalH = targetH
+  const SHRINK_STEPS = [0.75, 0.56, 0.42, 0.32, 0.24]
+  for (const scale of SHRINK_STEPS) {
+    if (blob.size <= preset.maxBytes) break
+    finalW = Math.max(64, Math.round(targetW * scale))
+    finalH = Math.max(36, Math.round(targetH * scale))
+    drawAt(finalW, finalH)
+    quality = 0.75
+    blob = await canvasToBlob(canvas, 'image/webp', quality)
+    while (blob.size > preset.maxBytes && quality > 0.2) {
+      quality = Math.max(0.2, quality - 0.1)
+      blob = await canvasToBlob(canvas, 'image/webp', quality)
+    }
+  }
+
   if (blob.size > preset.maxBytes) {
     throw new ImageTooLargeError(blob.size, preset.maxBytes)
   }
   return {
     blob,
     previewUrl: URL.createObjectURL(blob),
-    width: targetW,
-    height: targetH,
+    width: finalW,
+    height: finalH,
     sizeBytes: blob.size,
   }
 }
