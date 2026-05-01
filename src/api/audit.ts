@@ -57,8 +57,14 @@ interface PreviewSnapshot {
   score_forecast?: number
   score_community?: number
   rich_analysis?: {
-    strengths?: Array<{ axis?: string; bullet?: string }>
-    concerns?:  Array<{ axis?: string; bullet?: string }>
+    // Audit pillar's qualitative output. Field names follow the
+    // engine schema (scout_brief.strengths / .weaknesses) — externally
+    // we render 'weaknesses' as 'Concerns' to match the §1-A ⑦ 5+3
+    // asymmetric doctrine.
+    scout_brief?: {
+      strengths?:  Array<{ axis?: string; bullet?: string }>
+      weaknesses?: Array<{ axis?: string; bullet?: string }>
+    }
   }
 }
 
@@ -99,8 +105,9 @@ function renderMarkdown(env: PreviewEnvelope, slug: string): string {
   const audit = typeof snap.score_auto === 'number' ? snap.score_auto : null
   const scout = typeof snap.score_forecast === 'number' ? snap.score_forecast : null
   const comm  = typeof snap.score_community === 'number' ? snap.score_community : null
-  const strengths = snap.rich_analysis?.strengths?.slice(0, 3) ?? []
-  const concerns  = snap.rich_analysis?.concerns?.slice(0, 2) ?? []
+  const sb = snap.rich_analysis?.scout_brief
+  const strengths = sb?.strengths?.slice(0, 3) ?? []
+  const concerns  = sb?.weaknesses?.slice(0, 2) ?? []
   const projectUrl = p.id ? `https://commit.show/projects/${p.id}` : 'https://commit.show'
 
   const lines: string[] = []
