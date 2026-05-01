@@ -17,11 +17,16 @@ import { supabase } from '../lib/supabase'
 import { ApplaudButton } from './ApplaudButton'
 
 interface CommentRow {
-  id:         string
-  text:       string
-  member_id:  string | null
-  created_at: string
-  author?:    { id: string; display_name: string | null; avatar_url: string | null } | null
+  id:          string
+  text:        string
+  member_id:   string | null
+  created_at:  string
+  // Stage Manager system comments — populated by DB triggers (registered ·
+  // score_jump · graduated). 'kind' defaults to 'human' on existing rows.
+  kind?:       'human' | 'system'
+  event_kind?: string | null
+  event_meta?: Record<string, unknown> | null
+  author?:     { id: string; display_name: string | null; avatar_url: string | null } | null
 }
 
 interface ProjectCommentsProps {
@@ -43,7 +48,7 @@ export function ProjectComments({ projectId, viewerMemberId }: ProjectCommentsPr
     ;(async () => {
       const { data, error } = await supabase
         .from('comments')
-        .select('id, text, member_id, created_at, author:members(id, display_name, avatar_url)')
+        .select('id, text, member_id, created_at, kind, event_kind, event_meta, author:members(id, display_name, avatar_url)')
         .eq('project_id', projectId)
         .is('parent_id', null)
         .order('created_at', { ascending: false })
@@ -119,37 +124,58 @@ export function ProjectComments({ projectId, viewerMemberId }: ProjectCommentsPr
           </div>
         ) : (
           <ul>
-            {previews.map((r, i) => (
-              <li
-                key={r.id}
-                className="px-4 py-3 flex items-start gap-3"
-                style={{ borderTop: i === 0 ? 'none' : '1px solid rgba(255,255,255,0.06)' }}
-              >
-                <Avatar name={r.author?.display_name || 'Anon'} url={r.author?.avatar_url ?? null} />
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-baseline gap-2 mb-1">
-                    <span className="font-mono text-[11px] tracking-wide" style={{ color: 'var(--gold-500)' }}>
-                      @{(r.author?.display_name || 'Anon').trim()}
-                    </span>
-                    <span className="font-mono text-[10px]" style={{ color: 'var(--text-muted)' }}>
-                      {formatRelative(r.created_at)}
-                    </span>
+            {previews.map((r, i) => {
+              const sys = isSystem(r)
+              const name = sys ? 'Stage Manager' : (r.author?.display_name || 'Anon').trim()
+              return (
+                <li
+                  key={r.id}
+                  className="px-4 py-3 flex items-start gap-3"
+                  style={{ borderTop: i === 0 ? 'none' : '1px solid rgba(255,255,255,0.06)' }}
+                >
+                  {sys
+                    ? <StageManagerAvatar />
+                    : <Avatar name={name} url={r.author?.avatar_url ?? null} />}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-baseline gap-2 mb-1">
+                      <span
+                        className="font-mono text-[11px] tracking-wide"
+                        style={{ color: sys ? 'var(--cream)' : 'var(--gold-500)' }}
+                      >
+                        {sys ? 'Stage Manager' : '@' + name}
+                      </span>
+                      {sys && (
+                        <span
+                          className="font-mono text-[9px] tracking-widest px-1.5 py-0.5"
+                          style={{
+                            color: 'var(--gold-500)',
+                            border: '1px solid rgba(240,192,64,0.4)',
+                            borderRadius: '2px',
+                          }}
+                        >
+                          STAGE
+                        </span>
+                      )}
+                      <span className="font-mono text-[10px]" style={{ color: 'var(--text-muted)' }}>
+                        {formatRelative(r.created_at)}
+                      </span>
+                    </div>
+                    <div
+                      className="font-light text-sm leading-snug"
+                      style={{
+                        color: 'var(--text-primary)',
+                        display:           '-webkit-box',
+                        WebkitBoxOrient:   'vertical',
+                        WebkitLineClamp:   2,
+                        overflow:          'hidden',
+                      }}
+                    >
+                      {r.text}
+                    </div>
                   </div>
-                  <div
-                    className="font-light text-sm leading-snug"
-                    style={{
-                      color: 'var(--text-primary)',
-                      display:           '-webkit-box',
-                      WebkitBoxOrient:   'vertical',
-                      WebkitLineClamp:   2,
-                      overflow:          'hidden',
-                    }}
-                  >
-                    {r.text}
-                  </div>
-                </div>
-              </li>
-            ))}
+                </li>
+              )
+            })}
             {count > previews.length && (
               <li
                 className="px-4 py-2.5 text-center font-mono text-[11px] tracking-wide"
@@ -346,8 +372,9 @@ function CommentItem({
   onDeleted:      (id: string) => void
 }) {
   const [busy, setBusy] = useState(false)
-  const isOwn = !!viewerMemberId && row.member_id === viewerMemberId
-  const name = (row.author?.display_name || 'Anon').trim()
+  const sys = isSystem(row)
+  const isOwn = !sys && !!viewerMemberId && row.member_id === viewerMemberId
+  const name = sys ? 'Stage Manager' : (row.author?.display_name || 'Anon').trim()
   const time = useMemo(() => formatRelative(row.created_at), [row.created_at])
 
   const handleDelete = async () => {
@@ -367,14 +394,34 @@ function CommentItem({
   return (
     <li
       className="px-2 py-3 flex items-start gap-3"
-      style={{ borderTop: isFirst ? 'none' : '1px solid rgba(255,255,255,0.06)' }}
+      style={{
+        borderTop: isFirst ? 'none' : '1px solid rgba(255,255,255,0.06)',
+        background: sys ? 'rgba(240,192,64,0.03)' : 'transparent',
+      }}
     >
-      <Avatar name={name} url={row.author?.avatar_url ?? null} />
+      {sys
+        ? <StageManagerAvatar />
+        : <Avatar name={name} url={row.author?.avatar_url ?? null} />}
       <div className="flex-1 min-w-0">
-        <div className="flex items-baseline gap-2 mb-1">
-          <span className="font-mono text-[11px] tracking-wide" style={{ color: 'var(--gold-500)' }}>
-            @{name}
+        <div className="flex items-baseline gap-2 mb-1 flex-wrap">
+          <span
+            className="font-mono text-[11px] tracking-wide"
+            style={{ color: sys ? 'var(--cream)' : 'var(--gold-500)' }}
+          >
+            {sys ? 'Stage Manager' : '@' + name}
           </span>
+          {sys && (
+            <span
+              className="font-mono text-[9px] tracking-widest px-1.5 py-0.5"
+              style={{
+                color: 'var(--gold-500)',
+                border: '1px solid rgba(240,192,64,0.4)',
+                borderRadius: '2px',
+              }}
+            >
+              STAGE
+            </span>
+          )}
           <span className="font-mono text-[10px]" style={{ color: 'var(--text-muted)' }}>
             {time}
           </span>
@@ -402,6 +449,7 @@ function CommentItem({
              style={{ color: 'var(--text-primary)' }}>
           {row.text}
         </div>
+        {sys && row.event_meta && <SystemEventChips meta={row.event_meta} kind={row.event_kind ?? null} />}
         <div className="mt-2">
           <ApplaudButton
             targetType="comment"
@@ -469,7 +517,7 @@ function Composer({
     const { data, error } = await supabase
       .from('comments')
       .insert({ project_id: projectId, member_id: viewerMemberId, text: trimmed })
-      .select('id, text, member_id, created_at, author:members(id, display_name, avatar_url)')
+      .select('id, text, member_id, created_at, kind, event_kind, event_meta, author:members(id, display_name, avatar_url)')
       .single()
     setBusy(false)
     if (error || !data) {
@@ -534,6 +582,79 @@ function Composer({
           </button>
         </div>
       </div>
+    </div>
+  )
+}
+
+// ── System-comment helpers ──────────────────────────────────────────
+function isSystem(r: CommentRow): boolean {
+  return r.kind === 'system'
+}
+
+// Stage Manager glyph · gold line icon on navy tile · §4 OK because this
+// IS the identity carrier for the agent (parallel to a user avatar).
+function StageManagerAvatar() {
+  return (
+    <div
+      className="shrink-0 flex items-center justify-center"
+      style={{
+        width: 28, height: 28,
+        background: 'var(--navy-700)',
+        border: '1px solid rgba(240,192,64,0.4)',
+        borderRadius: '2px',
+      }}
+      aria-label="Stage Manager"
+    >
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none"
+           stroke="currentColor" strokeWidth="1.5"
+           strokeLinecap="round" strokeLinejoin="round"
+           style={{ color: 'var(--gold-500)' }}
+           aria-hidden="true">
+        {/* curtain rod + two curtain folds — the "stage manager" mark */}
+        <path d="M3 5h18" />
+        <path d="M6 5v14c0 0 1.5-2 3-2s3 2 3 2" />
+        <path d="M18 5v14c0 0 -1.5-2 -3-2s-3 2 -3 2" />
+      </svg>
+    </div>
+  )
+}
+
+// Optional event chips below system messages: '↑ +12 · Round 3 · 82/100' etc.
+// Only rendered when the trigger gave us structured meta; gracefully no-ops
+// otherwise.
+function SystemEventChips({ meta, kind }: { meta: Record<string, unknown>; kind: string | null }) {
+  const items: string[] = []
+
+  if (kind === 'score_jump') {
+    const delta = typeof meta.delta === 'number' ? meta.delta : null
+    const score = typeof meta.score_total === 'number' ? meta.score_total : null
+    const round = typeof meta.round === 'number' ? meta.round : null
+    if (delta !== null) items.push(`${delta > 0 ? '↑' : '↓'} ${delta > 0 ? '+' : ''}${delta}`)
+    if (round !== null) items.push(`Round ${round}`)
+    if (score !== null) items.push(`${score}/100`)
+  } else if (kind === 'graduated') {
+    const grade = typeof meta.grade === 'string' ? meta.grade : null
+    const score = typeof meta.final_score === 'number' ? meta.final_score : null
+    const season = meta.season != null ? String(meta.season) : null
+    if (grade)  items.push(grade.toUpperCase())
+    if (score !== null) items.push(`${score}/100`)
+    if (season) items.push(`Season ${season}`)
+  } else if (kind === 'registered') {
+    const score = typeof meta.initial_score === 'number' ? meta.initial_score : null
+    if (score !== null) items.push(`First read · ${score}/100`)
+  }
+
+  if (items.length === 0) return null
+
+  return (
+    <div className="mt-2 flex items-center gap-1.5 flex-wrap font-mono text-[10px] tracking-wide"
+         style={{ color: 'var(--text-muted)' }}>
+      {items.map((s, i) => (
+        <span key={i} className="flex items-center gap-1.5">
+          {i > 0 && <span aria-hidden="true" style={{ color: 'var(--text-faint)' }}>·</span>}
+          <span className="tabular-nums">{s}</span>
+        </span>
+      ))}
     </div>
   )
 }
