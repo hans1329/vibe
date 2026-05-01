@@ -1872,6 +1872,82 @@ type LadderCategory =
   | 'consumer_lifestyle'
   | 'games_playful'
 
+// Description-first scoring detector. The Creator's pitch text is the
+// strongest single signal of intent — a user who writes 'a 5-step game
+// quiz that types your gamer DNA' has explicitly told us what this is,
+// and the detector should not override that with a stack/form-factor
+// guess. Each category has a keyword bundle (English + Korean surface
+// forms) and a hard-signal pattern. We tally hits and pick the highest
+// score; form factor / tech stack only break ties or fill in the void
+// when description is too thin to score anything.
+//
+// Hard signals (engine names, runtime SDK presence) get a +5 boost —
+// these are facts about the artifact, not authorial claims, and should
+// outweigh ambiguous description language.
+
+interface CategoryRule {
+  cat:        LadderCategory
+  /** Pattern that, when matched, gives a strong baseline score (the
+   *  presence of an engine library, SDK, or domain-specific term that's
+   *  unlikely to appear by accident). */
+  hard?:      RegExp
+  /** Bundle of softer keywords. Each match contributes +1. */
+  soft:       RegExp
+  /** Form-factor / stack rule that, when true, contributes +2. Used to
+   *  break ties when description is mute. */
+  stack?:     (input: { formFactor: string; isSaas: boolean; layers: Set<string> }) => boolean
+}
+
+const CATEGORY_RULES: CategoryRule[] = [
+  {
+    cat:  'games_playful',
+    hard: /\bphaser\b|\bbabylonjs?\b|three\.js|godot|unity\b|@react-three|playerinput|gamedev|gameplay|interactive\s+fiction/,
+    soft: /\bgame[s]?\b|\bgamer[s]?\b|\barcade\b|\brpg\b|\bmmorpg\b|\bplatformer\b|\bshooter\b|\bmultiplayer\b|\bleaderboard\b|\bplayable\b|\bgaming\b|\bplay\s+(?:against|with|the)\b|\btournament\b|\bquiz\b|\bpuzzle\b|게임|\b겜\b|플레이어|보드게임|아케이드/,
+  },
+  {
+    cat:  'ai_agents_chat',
+    hard: /\bagent\b|\bassistant\b|\bchatbot\b|\bchat\s*bot\b|\brag\b|\bllm\b|conversational|autopilot|copilot|automation\s+worker|agentic|에이전트|챗봇|어시스턴트/,
+    soft: /\bai\b|\bartificial\s+intelligence\b|\bgpt\b|\bclaude\b|\bgemini\b|\bllama\b|\bvector\s+(?:store|search|db)\b|\bembeddings?\b|\bprompt\b|\bautocomplete\b|인공지능/,
+    stack: ({ layers }) => layers.has('ai'),
+  },
+  {
+    cat:  'creator_media',
+    hard: /\bgenerative\s+(?:art|image|video|audio|design)\b|\bportfolio\b|\billustration\b|\bcontent\s+creation\b/,
+    soft: /\bdesign\b|\bvideo[s]?\b|\bimage\s+(?:gen|editor|maker)\b|\bphoto[s]?\b|\bart\b|\bmusic\b|\baudio\b|\bwriting\b|\bblog\b|\bnewsletter\b|\bmedia\b|\bcreator\b|\bpublishing\b|\bgallery\b|\bcanvas\b|디자인|영상|이미지|음악|콘텐츠|크리에이터/,
+  },
+  {
+    cat:  'dev_tools',
+    hard: /\bcli\b|\bcommand[- ]line\b|\bscaffold(?:ing)?\b|\bstarter\s+(?:kit|template)\b|\bboilerplate\b|\bide\s+(?:plugin|extension)\b|\bsdk\b|\bapi\s+client\b|coding\s+(?:agent|assistant)|\bdebugger\b|\blinter\b|\bbundler\b|\bdevtools?\b|\bcompiler\b/,
+    soft: /\blibrary\b|\bframework\b|\bplugin\b|\btemplate\b|\bdeveloper[s]?\b|\bdev\b|\bopen\s+source\b|\bnpm\b|\bpackage\b|\bgithub\s+action\b|\b개발자\b|\b개발\s*도구\b/,
+    stack: ({ formFactor }) =>
+      formFactor === 'library' || formFactor === 'cli' || formFactor === 'scaffold',
+  },
+  {
+    cat:  'niche_saas',
+    hard: /\bcrm\b|\berp\b|\bhr\s+tech\b|\bfintech\b|\blegal\s+tech\b|\bedtech\b|\bhealth\s*tech\b|\bprop\s*tech\b|\bb2b\b|\bsaas\b|\bworkspace\b|\btenant\b|\badmin\s+panel\b/,
+    soft: /\bauth\b|\bsignup\b|\bsignin\b|\bsign-in\b|\blogin\b|\bbilling\b|\bsubscription\b|\bdashboard\b|\bteam[s]?\b|\bworkflow\b|\bservice\b|\bplatform\b|관리자|구독|결제|대시보드/,
+    stack: ({ formFactor, isSaas, layers }) =>
+      isSaas ||
+      (formFactor === 'app' && layers.has('backend') && layers.has('database')),
+  },
+  {
+    cat:  'consumer_lifestyle',
+    hard: /\be-?commerce\b|\bsocial\s+(?:network|app)\b|\bdating\b|\blanguage\s+learning\b/,
+    soft: /\bhealth\b|\bfitness\b|\bwellness\b|\bmedical\b|\bfinance\b|\bbudget\b|\binvest\b|\bbanking\b|\btravel\b|\btourism\b|\blearning\b|\beducation\b|\bcooking\b|\brecipe\b|\bshopping\b|\blifestyle\b|\bnews\b|\breading\b|\bpodcast\b|\bk-beauty\b|\bbeauty\b|\bskincare\b|건강|쇼핑|여행|뷰티|학습|요리/,
+  },
+  {
+    cat:  'productivity_personal',
+    hard: /\binternal\s+tool\b|\bquick\s+look\b/,
+    soft: /\bnotes?\b|\btodo\b|\btask\b|\bdashboard\b|\bautomation\b|\bworkflow\b|\bpersonal\b|\bproductivity\b|\bcalendar\b|\bplanner\b|\btracker\b|\bclipboard\b|\butility\b|\bsearch\b|\bbookmark\b|\b생산성\b|\b노트\b|\b일정\b|\b자동화\b/,
+  },
+]
+
+function countMatches(re: RegExp, text: string): number {
+  // Force a global flag clone so .matchAll works across the same input.
+  const g = re.global ? re : new RegExp(re.source, re.flags + 'g')
+  return [...text.matchAll(g)].length
+}
+
 function detectBusinessCategory(input: {
   formFactor:  string
   isSaas:      boolean
@@ -1879,71 +1955,49 @@ function detectBusinessCategory(input: {
   pkgName:     string
   description: string
 }): LadderCategory {
-  const desc  = input.description.toLowerCase()
-  const name  = input.pkgName.toLowerCase()
+  const desc   = input.description.toLowerCase()
+  const name   = input.pkgName.toLowerCase()
   const layers = new Set(input.techLayers)
-  const blob  = `${name} ${desc}`
+  // Description is weighted 2× since it's the Creator's explicit pitch;
+  // package name often is just a slug and 'name + desc' would let a
+  // single repo-name match shout over richer prose.
+  const blob   = `${desc} ${desc} ${name}`
 
-  // 1. Games — engine signature dominates regardless of form factor.
-  if (/\bphaser\b|\bbabylonjs?\b|three\.js|godot|unity\b|gamedev|gameplay|playerinput|@react-three|playable|interactive\s+fiction/.test(blob)) {
-    return 'games_playful'
+  let best: { cat: LadderCategory; score: number } | null = null
+  for (const rule of CATEGORY_RULES) {
+    let score = 0
+    if (rule.hard && rule.hard.test(blob)) score += 5
+    score += countMatches(rule.soft, blob)
+    if (rule.stack && rule.stack({ formFactor: input.formFactor, isSaas: input.isSaas, layers })) {
+      score += 2
+    }
+    if (score > 0 && (!best || score > best.score)) {
+      best = { cat: rule.cat, score }
+    }
   }
 
-  // 2. AI Agents & Chat — runtime AI SDK + agent / chatbot language.
-  //    Pure SaaS that "uses AI" doesn't qualify · the product itself
-  //    has to BE the agent.
-  const hasAi = layers.has('ai')
-  if (hasAi && /\bagent\b|\bassistant\b|\bchatbot\b|\bchat\s*bot\b|\brag\b|\bllm\b|conversational|autopilot|copilot|automation\s+worker/.test(blob)) {
-    return 'ai_agents_chat'
+  // Description gave us a confident pick — honor it. Threshold of 2
+  // means at least one hard hit, two soft hits, or one soft + one
+  // stack signal. Below that, fall through to the form-factor /
+  // stack-based fallbacks so we don't misclassify on a single
+  // accidental keyword.
+  if (best && best.score >= 2) return best.cat
+  if (best && best.score >= 1 && best.cat !== 'productivity_personal') {
+    // Single soft hit — accept only if the rule isn't the catch-all
+    // 'productivity' bucket (to avoid a stray 'note' word stealing).
+    return best.cat
   }
 
-  // 3. Creator & Media — design / video / image / writing / generative.
-  if (/\bdesign\b|\bvideo\b|\bvideos\b|\bimage\s+(?:gen|editor|maker)\b|\bphoto\b|\billustration\b|\bart\b|\bmusic\b|\baudio\b|\bwriting\b|\bcontent\s+creation\b|\bmedia\b|\bgenerative\s+(?:art|image|video|audio)\b|\bcreator\b|\bportfolio\b|\bpublishing\b/.test(blob)) {
-    return 'creator_media'
-  }
-
-  // 4. Dev Tools — CLI · library · IDE plugin · coding agent.
+  // Stack-only fallbacks (description was thin or mute).
   if (input.formFactor === 'library' || input.formFactor === 'cli' || input.formFactor === 'scaffold') {
     return 'dev_tools'
   }
-  if (/\bcli\b|\bcommand[- ]line\b|scaffold|starter|template|boilerplate|ide\s+(?:plugin|extension)|developer\s+tool|sdk\b|api\s+client|coding\s+(?:agent|assistant)|\bdebugger\b|\blinter\b|\bbundler\b/.test(blob)) {
-    return 'dev_tools'
-  }
-
-  // 5. Niche SaaS — vertical / role-specific micro-SaaS. Strong signal:
-  //    is_saas detector OR backend+db+auth+billing/subscription/dashboard/
-  //    industry-vertical language.
   if (input.isSaas) return 'niche_saas'
-  if (
-    input.formFactor === 'app' &&
-    layers.has('backend') &&
-    layers.has('database') &&
-    /\bauth\b|signup|signin|sign-in|login|billing|subscription|dashboard|saas\b|b2b\b|workspace\b|tenant\b|admin\s+panel|crm\b|hr\s+tech|fintech|legal\s+tech|edtech|healthtech|prop\s*tech/.test(blob)
-  ) {
-    return 'niche_saas'
-  }
-
-  // 6. Consumer & Lifestyle — health / finance / travel / learning / etc.
-  if (/\bhealth\b|\bfitness\b|\bwellness\b|\bmedical\b|\bfinance\b|\bbudget\b|\binvest\b|\bbanking\b|\btravel\b|\btourism\b|\blearning\b|\beducation\b|\blanguage\s+learning\b|\bcooking\b|\brecipe\b|\bshopping\b|\be-?commerce\b|\bsocial\s+(?:network|app)\b|\blifestyle\b|\bdating\b|\bnews\b|\breading\b|\bpodcast\b/.test(blob)) {
-    return 'consumer_lifestyle'
-  }
-
-  // 7. Productivity & Personal — notes / dashboards / automation / personal.
-  //    Catch-all for "internal / personal / utility tool" projects.
-  if (/\bnotes?\b|\btodo\b|\btask\b|\bdashboard\b|\bautomation\b|\bworkflow\b|\bpersonal\b|\binternal\s+tool\b|\bproductivity\b|\bcalendar\b|\bplanner\b|\btracker\b|\bclipboard\b|\bquick\s+look\b|\butility\b/.test(blob)) {
-    return 'productivity_personal'
-  }
-
-  // 8. AI-leaning fallback for unclassified app with AI layer.
-  if (input.formFactor === 'app' && hasAi) return 'ai_agents_chat'
-
-  // 9. Generic frontend-only without DB → likely a library/utility.
+  if (input.formFactor === 'app' && layers.has('ai')) return 'ai_agents_chat'
   if ((input.formFactor === 'unknown' || input.formFactor === 'app') &&
       layers.has('frontend') && !layers.has('database')) {
     return 'dev_tools'
   }
-
-  // 10. Last resort — Productivity & Personal as the broadest bucket.
   return 'productivity_personal'
 }
 
