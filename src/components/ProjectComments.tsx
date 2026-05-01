@@ -1,10 +1,11 @@
 // Project comments · YouTube-mobile pattern applied to ALL viewports.
 //
 // The component renders ONE thing inline: a collapsed preview card showing
-// up to 3 recent comments. Tapping anywhere on the card opens a modal with
-// the full thread + composer.
-//   · Mobile (< sm): the modal is full-screen (true bottom-sheet feel).
-//   · Desktop (≥ sm): the modal is a centered dialog (max-w-2xl, max-h-[80vh]).
+// up to 3 recent comments. Tapping anywhere on the card opens a right-side
+// drawer with the full thread + composer.
+//   · Mobile (< sm): the drawer is full-screen (true bottom-sheet feel).
+//   · Desktop (≥ sm): the drawer slides in from the right, max-w-xl wide,
+//     full viewport height. Backdrop dims the rest of the page.
 //
 // MVP scope: top-level comments only (no nested replies / upvotes / edit yet).
 // ApplaudButton on each comment via target_type='comment' (existing
@@ -165,7 +166,7 @@ export function ProjectComments({ projectId, viewerMemberId }: ProjectCommentsPr
       </div>
 
       {modalOpen && createPortal(
-        <Modal
+        <Drawer
           projectId={projectId}
           viewerMemberId={viewerMemberId}
           rows={rows}
@@ -180,8 +181,8 @@ export function ProjectComments({ projectId, viewerMemberId }: ProjectCommentsPr
   )
 }
 
-// ── Modal · full-screen on mobile, centered dialog on desktop ───────
-function Modal({
+// ── Drawer · slides in from the right · width-capped on desktop ─────
+function Drawer({
   projectId, viewerMemberId, rows, loading, onClose, onPosted, onDeleted,
 }: {
   projectId:      string
@@ -192,31 +193,53 @@ function Modal({
   onPosted:       (row: CommentRow) => void
   onDeleted:      (id: string) => void
 }) {
+  // Two-phase mount so the slide-in transition runs after the portal attaches.
+  const [entered, setEntered] = useState(false)
+  const [closing, setClosing] = useState(false)
+
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    const id = requestAnimationFrame(() => setEntered(true))
+    return () => cancelAnimationFrame(id)
+  }, [])
+
+  const requestClose = () => {
+    if (closing) return
+    setClosing(true)
+    setEntered(false)
+    setTimeout(onClose, 220) // matches the CSS transition below
+  }
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') requestClose() }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [onClose])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   return (
     <div
       role="dialog"
       aria-modal="true"
       aria-label="Comments"
-      className="fixed inset-0 z-50 flex sm:items-center sm:justify-center"
-      style={{ background: 'rgba(0,0,0,0.65)' }}
-      onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
+      className="fixed inset-0 z-50 flex justify-end"
+      onClick={(e) => { if (e.target === e.currentTarget) requestClose() }}
+      style={{
+        background: entered ? 'rgba(0,0,0,0.55)' : 'rgba(0,0,0,0)',
+        transition: 'background 220ms ease',
+      }}
     >
       <div
         className="
-          w-full h-full
-          sm:w-auto sm:h-auto sm:max-w-2xl sm:max-h-[80vh] sm:min-h-[400px]
           flex flex-col
+          w-full h-full
+          sm:max-w-xl
         "
         style={{
-          background: 'var(--navy-950)',
-          border:     '1px solid rgba(255,255,255,0.08)',
-          borderRadius: '2px',
+          background:    'var(--navy-950)',
+          borderLeft:    '1px solid rgba(255,255,255,0.08)',
+          boxShadow:     entered ? '-12px 0 40px rgba(0,0,0,0.45)' : 'none',
+          transform:     entered ? 'translateX(0)' : 'translateX(100%)',
+          transition:    'transform 220ms cubic-bezier(0.32,0.72,0,1), box-shadow 220ms ease',
         }}
       >
         {/* header */}
@@ -229,7 +252,7 @@ function Modal({
           </div>
           <button
             type="button"
-            onClick={onClose}
+            onClick={requestClose}
             className="ml-auto font-mono text-base"
             style={{
               background: 'transparent',
@@ -246,7 +269,7 @@ function Modal({
 
         {/* list */}
         <div className="flex-1 overflow-y-auto px-3 py-3">
-          <ModalCommentList
+          <DrawerCommentList
             rows={rows}
             loading={loading}
             viewerMemberId={viewerMemberId}
@@ -271,8 +294,8 @@ function Modal({
   )
 }
 
-// ── Comment list inside the modal ───────────────────────────────────
-function ModalCommentList({
+// ── Comment list inside the drawer ──────────────────────────────────
+function DrawerCommentList({
   rows, loading, viewerMemberId, onDeleted,
 }: {
   rows:           CommentRow[]
