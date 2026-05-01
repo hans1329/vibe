@@ -222,15 +222,18 @@ export function AnalysisResultCard({
   const [rerunError, setRerunError] = useState<string | null>(null)
   const [githubUrl, setGithubUrl] = useState<string | null>(null)
   const [liveUrl,   setLiveUrl]   = useState<string | null>(null)
+  const [projectName, setProjectName] = useState<string | null>(null)
 
   // Fetch the project's GitHub URL once — the Discovery panel needs it to build
-  // preview links and fetch raw content at publish time.
+  // preview links and fetch raw content at publish time. project_name is the
+  // anchor for the 'Copy fix prompt' action surfaced in ScoutBriefSection.
   useEffect(() => {
-    if (!projectId) { setGithubUrl(null); setLiveUrl(null); return }
-    supabase.from('projects').select('github_url, live_url').eq('id', projectId).maybeSingle()
+    if (!projectId) { setGithubUrl(null); setLiveUrl(null); setProjectName(null); return }
+    supabase.from('projects').select('github_url, live_url, project_name').eq('id', projectId).maybeSingle()
       .then(({ data }) => {
         setGithubUrl(data?.github_url ?? null)
         setLiveUrl(data?.live_url ?? null)
+        setProjectName(data?.project_name ?? null)
       })
   }, [projectId])
 
@@ -361,6 +364,10 @@ export function AnalysisResultCard({
           hasFullAccess={hasFullAccess}
           viewerTier={viewerTier}
           isOwner={isOwner}
+          projectName={projectName}
+          githubUrl={githubUrl}
+          onReanalyze={isOwner && projectId && onReanalyzed ? handleReanalyze : null}
+          rerunBusy={rerunBusy}
         />
       )}
 
@@ -578,21 +585,9 @@ export function AnalysisResultCard({
             VIEW ON PROJECT PAGE →
           </button>
         )}
-        {projectId && onReanalyzed && (
-          <button
-            onClick={handleReanalyze}
-            disabled={rerunBusy}
-            className="font-mono text-xs tracking-wide px-4 py-2"
-            style={{
-              background: rerunBusy ? 'rgba(240,192,64,0.15)' : 'rgba(240,192,64,0.1)',
-              border: '1px solid rgba(240,192,64,0.35)',
-              color: 'var(--gold-500)', borderRadius: '2px',
-              cursor: rerunBusy ? 'not-allowed' : 'pointer',
-            }}
-          >
-            {rerunBusy ? '⏳ RE-ANALYZING (60–120s)…' : '🔁 RE-ANALYZE (24h cooldown)'}
-          </button>
-        )}
+        {/* Re-audit button now lives in the SCOUT BRIEF header so it sits
+            next to the concerns the user came here to act on. The bottom
+            row keeps only navigation/utility actions. */}
         {onReset && (
           <button
             onClick={onReset}
@@ -856,32 +851,102 @@ const SCOUT_VISIBLE_WEAKNESSES = 3
 
 function ScoutBriefSection({
   brief, hasFullAccess, viewerTier, isOwner,
+  projectName, githubUrl, onReanalyze, rerunBusy,
 }: {
   brief: { strengths: ScoutBriefBullet[]; weaknesses: ScoutBriefBullet[] }
   hasFullAccess: boolean
   viewerTier: ScoutTier | null
   isOwner: boolean
+  projectName: string | null
+  githubUrl: string | null
+  onReanalyze: (() => void) | null    // null = hide button (visitor or no projectId)
+  rerunBusy: boolean
 }) {
   const strengths = brief.strengths ?? []
   const allWeaknesses = brief.weaknesses ?? []
   const visibleWeaknesses = hasFullAccess ? allWeaknesses : allWeaknesses.slice(0, SCOUT_VISIBLE_WEAKNESSES)
   const hiddenCount = Math.max(0, allWeaknesses.length - visibleWeaknesses.length)
+  const [copied, setCopied] = useState(false)
+
+  const handleCopyPrompt = async () => {
+    const lines: string[] = []
+    const target = projectName && githubUrl
+      ? `${projectName} (${githubUrl})`
+      : (projectName || githubUrl || 'this project')
+    lines.push(`I'm working on ${target}.`)
+    lines.push('')
+    lines.push('commit.show audited it and flagged these concerns:')
+    lines.push('')
+    visibleWeaknesses.forEach((b, i) => {
+      lines.push(`${i + 1}. [${b.axis}] ${b.bullet}`)
+    })
+    lines.push('')
+    lines.push("For each, propose the smallest minimal patch and apply it. After you're done, I'll re-run `npx commitshow audit` to verify the score moved.")
+    const prompt = lines.join('\n')
+    try {
+      await navigator.clipboard.writeText(prompt)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch (e) {
+      console.error('[copy fix prompt] failed', e)
+    }
+  }
 
   return (
     <div>
-      <div className="flex items-baseline justify-between flex-wrap gap-2 mb-3">
+      <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
         <div className="font-mono text-xs tracking-widest" style={{ color: 'var(--gold-500)' }}>
           // SCOUT BRIEF · {strengths.length}+{allWeaknesses.length}
         </div>
-        {!hasFullAccess && (
-          <span className="font-mono text-[10px]" style={{ color: 'var(--text-muted)' }}>
-            Tier: <span style={{ color: 'var(--cream)' }}>{viewerTier ?? 'Guest'}</span> · full view at Platinum
-          </span>
-        )}
+        <div className="flex items-center gap-2 flex-wrap">
+          {visibleWeaknesses.length > 0 && (
+            <button
+              type="button"
+              onClick={handleCopyPrompt}
+              className="font-mono text-[11px] tracking-wide px-3 py-1.5 inline-flex items-center gap-1.5"
+              style={{
+                background: copied ? 'rgba(63,168,116,0.12)' : 'transparent',
+                color:      copied ? '#3FA874' : 'var(--text-secondary)',
+                border:     `1px solid ${copied ? 'rgba(63,168,116,0.45)' : 'rgba(255,255,255,0.12)'}`,
+                borderRadius: '2px',
+                cursor: 'pointer',
+              }}
+              onMouseEnter={(e) => { if (!copied) e.currentTarget.style.color = 'var(--cream)' }}
+              onMouseLeave={(e) => { if (!copied) e.currentTarget.style.color = 'var(--text-secondary)' }}
+              aria-label="Copy fix prompt for AI tool"
+            >
+              {copied ? 'Copied · paste in your AI tool' : 'Copy fix prompt'}
+            </button>
+          )}
+          {onReanalyze && (
+            <button
+              type="button"
+              onClick={onReanalyze}
+              disabled={rerunBusy}
+              className="font-mono text-[11px] tracking-wide px-3 py-1.5"
+              style={{
+                background:   rerunBusy ? 'rgba(240,192,64,0.25)' : 'var(--gold-500)',
+                color:        rerunBusy ? 'var(--text-muted)' : 'var(--navy-900)',
+                border:       'none',
+                borderRadius: '2px',
+                cursor:       rerunBusy ? 'wait' : 'pointer',
+                fontWeight:   600,
+              }}
+              aria-label="Re-audit this build"
+            >
+              {rerunBusy ? 'Auditing 60–120s…' : 'Re-audit →'}
+            </button>
+          )}
+          {!hasFullAccess && (
+            <span className="font-mono text-[10px]" style={{ color: 'var(--text-muted)' }}>
+              Tier: <span style={{ color: 'var(--cream)' }}>{viewerTier ?? 'Guest'}</span> · full view at Platinum
+            </span>
+          )}
+        </div>
       </div>
       <p className="text-xs font-light mb-4" style={{ color: 'rgba(248,245,238,0.55)', lineHeight: 1.7 }}>
         {isOwner
-          ? 'Things to fix first · then strengths to keep. The score below is the receipt; this is the work.'
+          ? 'Things to fix first · then strengths to keep. Hit Copy fix prompt to ship the list straight to your coding agent, then Re-audit when the patches land.'
           : 'What this build missed · what it got right. Scouts read this before forecasting.'}
       </p>
 
