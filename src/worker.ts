@@ -27,6 +27,24 @@ export default {
     if (url.pathname === '/api/openapi.json' || url.pathname === '/api/openapi') {
       return handleOpenAPI(request)
     }
-    return env.ASSETS.fetch(request)
+    // Static assets first. If the binding 404s on a path that doesn't
+    // look like a static file (no extension), serve /index.html so the
+    // React Router on the SPA side can route client-side. This replaces
+    // the not_found_handling: single-page-application config that
+    // applies automatically WITHOUT a worker entry but is bypassed once
+    // we own routing here.
+    const assetResponse = await env.ASSETS.fetch(request)
+    if (assetResponse.status === 404 && !/\.[A-Za-z0-9]+$/.test(url.pathname)) {
+      const indexUrl = new URL('/', request.url)
+      const fallback = await env.ASSETS.fetch(new Request(indexUrl, request))
+      // Mirror SPA fallback semantics — serve index.html with a 200 so
+      // React Router renders the matched route. Keep the original
+      // request's headers (cookies, accept, etc.) on the inner fetch.
+      return new Response(fallback.body, {
+        status:  200,
+        headers: fallback.headers,
+      })
+    }
+    return assetResponse
   },
 }
