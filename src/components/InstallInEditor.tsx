@@ -46,9 +46,11 @@ const OTHER_MCP_JSON = JSON.stringify(
 function buildCursorDeepLink(): string {
   const config = { command: MCP_CMD, args: [...MCP_ARGS] }
   // Cursor's deep-link expects a base64-encoded JSON config blob.
+  // Browser only — this component is rendered client-side so window.btoa
+  // is always available; we don't pull in a Node Buffer fallback.
   const b64 = typeof window !== 'undefined' && typeof window.btoa === 'function'
     ? window.btoa(JSON.stringify(config))
-    : Buffer.from(JSON.stringify(config), 'utf-8').toString('base64')
+    : ''
   const params = new URLSearchParams({ name: MCP_NAME, config: b64 })
   return `cursor://anysphere.cursor-deeplink/mcp/install?${params.toString()}`
 }
