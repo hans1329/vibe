@@ -98,29 +98,20 @@ export function ProjectComments({ projectId, viewerMemberId }: ProjectCommentsPr
         onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'rgba(240,192,64,0.35)' }}
         onMouseLeave={(e) => { e.currentTarget.style.borderColor = '' }}
       >
-        <div className="px-4 py-3 flex items-center justify-between"
+        <div className="px-3 py-2 flex items-center"
              style={{ borderBottom: previews.length > 0 ? '1px solid rgba(255,255,255,0.06)' : 'none' }}>
-          <div className="font-mono text-xs tracking-widest" style={{ color: 'var(--text-secondary)' }}>
+          <div className="font-mono text-[11px] tracking-widest" style={{ color: 'var(--text-secondary)' }}>
             COMMENTS · <span className="tabular-nums" style={{ color: 'var(--cream)' }}>{count}</span>
-          </div>
-          <div className="font-mono text-[11px] tracking-wide flex items-center gap-1" style={{ color: 'var(--gold-500)' }}>
-            <span>View all</span>
-            <span aria-hidden="true">→</span>
           </div>
         </div>
 
         {loading ? (
-          <div className="px-4 py-8 text-center font-mono text-xs" style={{ color: 'var(--text-muted)' }}>
+          <div className="px-3 py-5 text-center font-mono text-[11px]" style={{ color: 'var(--text-muted)' }}>
             loading…
           </div>
         ) : count === 0 ? (
-          <div className="px-4 py-8 text-center">
-            <div className="font-light text-sm mb-2" style={{ color: 'var(--text-secondary)' }}>
-              No comments yet — be the first to weigh in.
-            </div>
-            <div className="font-mono text-[11px]" style={{ color: 'var(--gold-500)' }}>
-              Tap to open →
-            </div>
+          <div className="px-3 py-5 text-center font-light text-sm" style={{ color: 'var(--text-secondary)' }}>
+            No comments yet — be the first to weigh in.
           </div>
         ) : (
           <ul>
@@ -130,23 +121,23 @@ export function ProjectComments({ projectId, viewerMemberId }: ProjectCommentsPr
               return (
                 <li
                   key={r.id}
-                  className="px-4 py-3 flex items-start gap-3"
+                  className="px-3 py-2 flex items-start gap-2.5"
                   style={{ borderTop: i === 0 ? 'none' : '1px solid rgba(255,255,255,0.06)' }}
                 >
                   {sys
                     ? <StageManagerAvatar />
                     : <Avatar name={name} url={r.author?.avatar_url ?? null} />}
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-baseline gap-2 mb-1">
+                    <div className="flex items-baseline gap-2 mb-0.5">
                       <span
-                        className="font-mono text-[11px] tracking-wide"
+                        className="font-mono text-[11px] tracking-wide truncate"
                         style={{ color: sys ? 'var(--cream)' : 'var(--gold-500)' }}
                       >
                         {sys ? 'Stage Manager' : '@' + name}
                       </span>
                       {sys && (
                         <span
-                          className="font-mono text-[9px] tracking-widest px-1.5 py-0.5"
+                          className="font-mono text-[9px] tracking-widest px-1.5 py-0.5 shrink-0"
                           style={{
                             color: 'var(--gold-500)',
                             border: '1px solid rgba(240,192,64,0.4)',
@@ -156,19 +147,13 @@ export function ProjectComments({ projectId, viewerMemberId }: ProjectCommentsPr
                           STAGE
                         </span>
                       )}
-                      <span className="font-mono text-[10px]" style={{ color: 'var(--text-muted)' }}>
+                      <span className="font-mono text-[10px] shrink-0" style={{ color: 'var(--text-muted)' }}>
                         {formatRelative(r.created_at)}
                       </span>
                     </div>
                     <div
-                      className="font-light text-sm leading-snug"
-                      style={{
-                        color: 'var(--text-primary)',
-                        display:           '-webkit-box',
-                        WebkitBoxOrient:   'vertical',
-                        WebkitLineClamp:   2,
-                        overflow:          'hidden',
-                      }}
+                      className="font-light text-sm leading-snug truncate"
+                      style={{ color: 'var(--text-primary)' }}
                     >
                       {r.text}
                     </div>
@@ -178,13 +163,13 @@ export function ProjectComments({ projectId, viewerMemberId }: ProjectCommentsPr
             })}
             {count > previews.length && (
               <li
-                className="px-4 py-2.5 text-center font-mono text-[11px] tracking-wide"
+                className="px-3 py-1.5 text-center font-mono text-[10px] tracking-wide"
                 style={{
                   color: 'var(--text-muted)',
                   borderTop: '1px solid rgba(255,255,255,0.06)',
                 }}
               >
-                +{count - previews.length} more · tap to read
+                +{count - previews.length} more
               </li>
             )}
           </ul>
