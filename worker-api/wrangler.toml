@@ -1,0 +1,18 @@
+name = "commitshow-api"
+main = "src/index.ts"
+compatibility_date = "2025-01-01"
+
+# Public REST surface for commit.show. Bound to api.commit.show as a
+# Cloudflare Workers Custom Domain — DNS + binding are provisioned by
+# the deploy below, no manual dashboard click required as long as the
+# commit.show zone is on this Cloudflare account. This Worker is fully
+# isolated from the main Pages project (commit.show) so a routing bug
+# here can't break the marketing site.
+
+routes = [
+  { pattern = "api.commit.show", custom_domain = true }
+]
+
+[vars]
+SUPABASE_URL      = "https://tekemubwihsjdzittoqf.supabase.co"
+SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRla2VtdWJ3aWhzamR6aXR0b3FmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY0MzQ1NzUsImV4cCI6MjA5MjAxMDU3NX0.n2K-3lFVvlXQx-bV9evdNRSQCtG5oC4uQushxB2ja9Y"

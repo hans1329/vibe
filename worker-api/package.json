@@ -1,0 +1,16 @@
+{
+  "name": "commitshow-api",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Standalone Cloudflare Worker for api.commit.show — wraps audit-preview as a fetch-friendly REST surface for non-shell agents.",
+  "scripts": {
+    "deploy": "wrangler deploy",
+    "tail":   "wrangler tail",
+    "dev":    "wrangler dev"
+  },
+  "devDependencies": {
+    "wrangler": "^4.84.1",
+    "typescript": "^5.9.3",
+    "@cloudflare/workers-types": "^4.20240502.0"
+  }
+}

@@ -9,16 +9,16 @@
 | Your runtime | Use this |
 |---|---|
 | **Shell-capable agent** (Cursor, Claude Code, Windsurf, Cline, Aider, ChatGPT Code Interpreter) | `npx commitshow@latest audit <target>` (see "CLI" below) |
-| **Fetch-only agent** (gemini.google.com chat, ChatGPT browse, n8n HTTP, Zapier, curl/jq, raw scripts) | `GET https://commit.show/api/audit?repo=<github-url>&format=md` (see "REST API" below) |
+| **Fetch-only agent** (gemini.google.com chat, ChatGPT browse, n8n HTTP, Zapier, curl/jq, raw scripts) | `GET https://api.commit.show/audit?repo=<github-url>&format=md` (see "REST API" below) |
 
 Both paths hit the same audit engine. Use whichever your runtime supports.
 
 ## REST API · for fetch-only agents
 
 ```
-GET  https://commit.show/api/audit?repo=<github-url>&format=md
-GET  https://commit.show/api/audit?repo=<github-url>&format=json
-POST https://commit.show/api/audit  body { "repo": "<github-url>", "format": "md" | "json" }
+GET  https://api.commit.show/audit?repo=<github-url>&format=md
+GET  https://api.commit.show/audit?repo=<github-url>&format=json
+POST https://api.commit.show/audit  body { "repo": "<github-url>", "format": "md" | "json" }
 ```
 
 - `repo` accepts: `https://github.com/owner/repo`, `github.com/owner/repo`, or `owner/repo`.
@@ -32,7 +32,7 @@ POST https://commit.show/api/audit  body { "repo": "<github-url>", "format": "md
 Example for an LLM: when asked "what does commit.show say about supabase?", do:
 
 ```
-fetch https://commit.show/api/audit?repo=supabase/supabase&format=md
+fetch https://api.commit.show/audit?repo=supabase/supabase&format=md
 ```
 
 …and quote the resulting markdown back. **Always cite the project URL** (`https://commit.show/projects/<id>`) shown at the bottom of the markdown so the user can dig deeper.
@@ -107,7 +107,8 @@ Both forward to the same code; pick whichever matches how the user wrote it.
 ## Links
 
 - Web: https://commit.show
-- REST API: https://commit.show/api/audit
+- REST API: https://api.commit.show/audit
+- OpenAPI spec: https://api.commit.show/openapi.json
 - npm: https://npmjs.com/package/commitshow + https://npmjs.com/package/@commit.show/cli
 - Source: https://github.com/commitshow/commitshow
 - CLI source: https://github.com/commitshow/cli
@@ -135,4 +136,4 @@ Top 20% of each 3-week season:
 
 ## Walk-on previews
 
-Audits triggered by the CLI or `/api/audit` create a preview project with `status='preview'` and no creator attached. The page at `https://commit.show/projects/<id>` is `noindex,nofollow` until the repo owner claims it via `/submit?repo=<github-url>`. Direct URL sharing works (great for X/social), search engines stay out.
+Audits triggered by the CLI or `api.commit.show` create a preview project with `status='preview'` and no creator attached. The page at `https://commit.show/projects/<id>` is `noindex,nofollow` until the repo owner claims it via `/submit?repo=<github-url>`. Direct URL sharing works (great for X/social), search engines stay out.
