@@ -5,6 +5,7 @@
 
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../lib/auth'
+import { InstallInEditor } from '../components/InstallInEditor'
 
 export function AuditPage() {
   const { user, loading } = useAuth()
@@ -427,6 +428,11 @@ function AuditPageContent() {
           <p className="font-mono text-[11px] mt-3" style={{ color: 'var(--text-muted)' }}>
             Last updated: 2026-04-27 · v3 calibration baseline
           </p>
+        </div>
+
+        {/* ── INSTALL IN EDITOR · MCP one-click cards ── */}
+        <div className="mt-10">
+          <InstallInEditor />
         </div>
       </div>
     </section>
