@@ -509,8 +509,22 @@ function CommentItem({
 }
 
 // Reaction primer chips · §2 Community exception (emoji allowed in comment
-// input). Tap → prepend the glyph + space to the textarea + focus. Lowers
-// the path from 'blank → paragraph' to 'tap → 5 words' on first comment.
+// input). Tap → PREPEND '<glyph> <label> — ' to the textarea + focus.
+// Lowers the path from 'blank page → paragraph' to 'tap → finish a sentence'
+// on a first comment.
+//
+// Intentionally different from src/components/EmotionTagRow.tsx (used in
+// ForecastModal):
+//   · Project comments are open-ended discussion. Prepending the full
+//     '🙌 nailed it — ' scaffolds a sentence the user just completes,
+//     killing blank-page anxiety on first contributions.
+//   · Forecast rationale is 140-char hard-capped and a single emoji is
+//     a valid signal on its own. There the chips append JUST the emoji
+//     so every available char stays free for actual rationale.
+//
+// Same canonical 5-emoji set; same brand intent ('quick reaction'); but
+// don't share the component — the insertion behavior is the variable
+// that matters and it's optimized differently per surface.
 const REACTION_PRIMERS = [
   { glyph: '🙌', label: 'nailed it' },
   { glyph: '🎯', label: 'sharp' },

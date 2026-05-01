@@ -1,10 +1,23 @@
-// Emotion tag preset · quick-insert chips above a comment textarea.
+// Emotion tag preset · quick-insert chips for the ForecastModal
+// rationale field (140-char hard cap).
+//
 // Carved-out emoji exception per CLAUDE.md §4 — user-typed content, not a
 // UI icon. Preset list is canonical (§2 Community): 🙌 🎯 🔥 🤔 💡.
 //
-// Each chip appends the emoji to the current value (separated by a space
-// when the field isn't empty). Chips self-disable when max length would
-// be exceeded.
+// Each chip APPENDS the emoji (with a leading space when the field isn't
+// empty). Chips self-disable when adding would bust maxLength.
+//
+// Intentionally different from src/components/ProjectComments.tsx
+// REACTION_PRIMERS:
+//   · ForecastModal rationale is hard-capped at 140 chars and a Scout's
+//     valid signal can be a single emoji ("🔥"). Appending JUST the emoji
+//     keeps every char available for actual rationale.
+//   · Project comments are open-ended discussion, so we PREPEND
+//     '<emoji> <label> — ' (e.g. '🙌 nailed it — ') to scaffold the
+//     sentence and lower the blank-page anxiety on a first comment.
+//
+// Don't unify the two surfaces under one component without consulting
+// both copy contexts — they're optimizing for different user behaviors.
 
 interface Props {
   value:    string
