@@ -313,7 +313,7 @@ function LineRow({
           <div
             key={i}
             style={{
-              color:         '#E8946E',
+              color:         '#F0C040',
               fontSize:      '18px',
               lineHeight:    1,
               letterSpacing: 0,
