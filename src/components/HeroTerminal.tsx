@@ -17,41 +17,39 @@
 import { useEffect, useRef, useState } from 'react'
 import { useRecentAudits, type AuditDemo } from '../lib/recentAudits'
 
-// 5×7 pixel matrix per digit · matches commitshow/cli render.ts. Each
-// "1" pixel renders as a 2-char block (██) with a 1-char gap between
-// pixels, giving the LCD-style block-grid feel CEO referenced from the
-// Claude Code logo. ANSI Shadow gave a solid silhouette; this one
-// shows visible inter-pixel seams so each "block" reads as its own
-// cell within the digit.
+// ANSI Shadow figlet font · transcribed via oh-my-logo --filled. Same
+// glyphs the CLI renders (commitshow/cli src/lib/render.ts), so a hero-
+// page audit visual matches a terminal screenshot pixel-for-pixel.
+// Variable-width per glyph (4 to 10 cols), pre-padded so adjacent digits
+// concat with a single space.
 const BIG_DIGITS: Record<string, string[]> = {
-  "0": ["11111","10001","10001","10001","10001","10001","11111"],
-  "1": ["00100","01100","00100","00100","00100","00100","01110"],
-  "2": ["11111","00001","00001","11111","10000","10000","11111"],
-  "3": ["11111","00001","00001","11111","00001","00001","11111"],
-  "4": ["10001","10001","10001","11111","00001","00001","00001"],
-  "5": ["11111","10000","10000","11111","00001","00001","11111"],
-  "6": ["11111","10000","10000","11111","10001","10001","11111"],
-  "7": ["11111","00001","00001","00001","00001","00001","00001"],
-  "8": ["11111","10001","10001","11111","10001","10001","11111"],
-  "9": ["11111","10001","10001","11111","00001","00001","11111"],
+  "0": ["  ██████╗ ", " ██╔═████╗", " ██║██╔██║", " ████╔╝██║", " ╚██████╔╝", "  ╚═════╝ "],
+  "1": ["  ██╗", " ███║", " ╚██║", "  ██║", "  ██║", "  ╚═╝"],
+  "2": [" ██████╗ ", " ╚════██╗", "  █████╔╝", " ██╔═══╝ ", " ███████╗", " ╚══════╝"],
+  "3": [" ██████╗ ", " ╚════██╗", "  █████╔╝", "  ╚═══██╗", " ██████╔╝", " ╚═════╝ "],
+  "4": [" ██╗  ██╗", " ██║  ██║", " ███████║", " ╚════██║", "      ██║", "      ╚═╝"],
+  "5": [" ███████╗", " ██╔════╝", " ███████╗", " ╚════██║", " ███████║", " ╚══════╝"],
+  "6": ["  ██████╗ ", " ██╔════╝ ", " ███████╗ ", " ██╔═══██╗", " ╚██████╔╝", "  ╚═════╝ "],
+  "7": [" ███████╗", " ╚════██║", "     ██╔╝", "    ██╔╝ ", "    ██║  ", "    ╚═╝  "],
+  "8": ["  █████╗ ", " ██╔══██╗", " ╚█████╔╝", " ██╔══██╗", " ╚█████╔╝", "  ╚════╝ "],
+  "9": ["  █████╗ ", " ██╔══██╗", " ╚██████║", "  ╚═══██║", "  █████╔╝", "  ╚════╝ "],
 }
 
-const BIG_ROWS = 7
-const PIXEL_FILL  = "█"
-const PIXEL_BLANK = " "
-const PIXEL_GAP   = " "
-const DIGIT_GAP   = "   "
+const BIG_ROWS = 6
 
 function bigDigits(n: string): string[] {
   const rows = Array.from({ length: BIG_ROWS }, () => "")
+  // 0 explicit gutter — each glyph already carries its own leading and
+  // trailing whitespace, so concatenating with no extra gap still gives
+  // a visible 2-col space. Pixel-grid detour reverted 2026-05-02:
+  // the user-referenced look was always the oh-my-logo ANSI Shadow output
+  // we transcribed from the start.
+  const GAP = ""
   const chars = n.split("")
   for (let i = 0; i < chars.length; i++) {
-    const m = BIG_DIGITS[chars[i]] ?? BIG_DIGITS["0"]
-    const glyphRows = m.map(row =>
-      row.split("").map(c => c === "1" ? PIXEL_FILL : PIXEL_BLANK).join(PIXEL_GAP)
-    )
+    const glyph = BIG_DIGITS[chars[i]] ?? BIG_DIGITS["0"]
     for (let r = 0; r < BIG_ROWS; r++) {
-      rows[r] += glyphRows[r] + (i < chars.length - 1 ? DIGIT_GAP : "")
+      rows[r] += glyph[r] + (i < chars.length - 1 ? GAP : "")
     }
   }
   return rows
