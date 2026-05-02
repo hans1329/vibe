@@ -30,11 +30,15 @@ export function ThisWeekHighlight() {
       // Pull every snapshot in the last 7 days that carries a non-zero delta.
       // A single project can snapshot multiple times in the window — we keep
       // only the biggest |delta| per project and take the top 3 after that.
+      // currentScore comes from projects.score_total (live, post-trigger),
+      // NOT from snapshot.score_total, so the headline number always matches
+      // what the ladder shows. snapshot.score_total is the score AT audit
+      // time and goes stale the moment any vote/applaud lifts the live total.
       const { data } = await supabase
         .from('analysis_snapshots')
         .select(`
-          project_id, created_at, score_total, score_total_delta,
-          project:projects!analysis_snapshots_project_id_fkey(id, project_name, thumbnail_url, status)
+          project_id, created_at, score_total_delta,
+          project:projects!analysis_snapshots_project_id_fkey(id, project_name, thumbnail_url, status, score_total)
         `)
         .gte('created_at', since)
         .not('score_total_delta', 'is', null)
@@ -48,9 +52,8 @@ export function ThisWeekHighlight() {
         const r = row as {
           project_id:        string
           created_at:        string
-          score_total:       number
           score_total_delta: number
-          project:           { id: string; project_name: string; thumbnail_url: string | null; status: string | null } | Array<{ id: string; project_name: string; thumbnail_url: string | null; status: string | null }>
+          project:           { id: string; project_name: string; thumbnail_url: string | null; status: string | null; score_total: number } | Array<{ id: string; project_name: string; thumbnail_url: string | null; status: string | null; score_total: number }>
         }
         const proj = Array.isArray(r.project) ? r.project[0] : r.project
         if (!proj) return
@@ -61,7 +64,7 @@ export function ThisWeekHighlight() {
           projectId:    r.project_id,
           projectName:  proj.project_name,
           thumbnailUrl: proj.thumbnail_url,
-          currentScore: r.score_total,
+          currentScore: proj.score_total,    // live, matches ladder
           delta:        r.score_total_delta,
           when:         r.created_at,
         }

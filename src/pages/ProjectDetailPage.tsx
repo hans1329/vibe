@@ -549,7 +549,22 @@ export function ProjectDetailPage() {
 
             <div className="grid gap-5">
               <GraduationStanding projectId={project.id} viewerMode={isOwner ? 'owner' : 'visitor'} />
-              <ScoreTimeline points={timeline} />
+              {/* Last timeline point reflects the live ladder total
+                  (engagement-driven). Earlier points stay as audit-time
+                  snapshots — you can't rewrite history. delta is recomputed
+                  against the previous point so the chart's rightmost label
+                  agrees with ScanStrip / AnalysisResultCard / Ladder. */}
+              <ScoreTimeline points={(() => {
+                if (timeline.length === 0) return timeline
+                const last = timeline[timeline.length - 1]
+                if (last.score_total === project.score_total) return timeline
+                const prevSnap = timeline.length >= 2 ? timeline[timeline.length - 2] : null
+                const liveDelta = prevSnap ? project.score_total - prevSnap.score_total : last.score_total_delta
+                return [
+                  ...timeline.slice(0, -1),
+                  { ...last, score_total: project.score_total, score_total_delta: liveDelta },
+                ]
+              })()} />
             </div>
 
             {/* AI Coder 7 Frames · signature framework — sits between
@@ -590,7 +605,14 @@ export function ProjectDetailPage() {
             />
             {snapshotResult ? (
               <AnalysisResultCard
-                result={snapshotResult}
+                // The snapshot froze score_total at audit time; engagement
+                // triggers (votes/applauds/comments) lift projects.score_total
+                // afterward. The card's headline must match the live ladder
+                // total — anything else surfaces two different "Score" numbers
+                // on the same page, which we just had to debug. axis_scores +
+                // strengths + concerns stay snapshot-frozen (those ARE point-
+                // in-time audit outputs).
+                result={{ ...snapshotResult, score_total: project.score_total }}
                 projectId={isOwner ? project.id : undefined}
                 onReanalyzed={isOwner ? async (next) => {
                   // 1) Latest analysis snapshot — drives the bottom card.

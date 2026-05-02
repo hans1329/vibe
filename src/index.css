@@ -247,9 +247,19 @@ input, textarea, select {
   color: var(--cream);
   border-radius: 4px;
   font-family: 'DM Sans', sans-serif;
-  font-size: 14px;
+  /* 16px on touch viewports prevents iOS Safari's "input < 16px = auto-zoom"
+     behavior. Desktop reverts to the original 14px below for the compact
+     visual we use in dense forms. Apply this rule across every form
+     element in the app — never use a smaller font on inputs without an
+     explicit reason. */
+  font-size: 16px;
   transition: border-color 0.2s;
   outline: none;
+}
+@media (min-width: 768px) {
+  input, textarea, select {
+    font-size: 14px;
+  }
 }
 input:focus, textarea:focus {
   border-color: var(--gold-500);

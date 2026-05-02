@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../lib/auth'
 import { supabase, PUBLIC_PROJECT_COLUMNS, type Project, type MDLibraryItem, type MemberStats, type ScoutTier } from '../lib/supabase'
@@ -603,7 +604,11 @@ function GraduationExplainer({ currentGrade, graduatedCount }: { currentGrade: s
 // ── Application row ───────────────────────────────────────────
 function ApplicationRow({ project: p, onDeleted }: { project: Project; onDeleted: () => void }) {
   const navigate = useNavigate()
-  const [confirming, setConfirming] = useState(false)
+  // Confirmation lives in a real modal — the previous inline two-step
+  // (DELETE → CONFIRM) was easy to fat-finger through on mobile because
+  // both buttons sat in the same 18-px-tall row. A portal modal forces
+  // a deliberate second tap on a generous target.
+  const [confirmOpen, setConfirmOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [error, setError] = useState('')
   const scoreColor = p.score_total >= 75 ? '#00D4AA' : p.score_total >= 50 ? '#F0C040' : '#C8102E'
@@ -614,14 +619,19 @@ function ApplicationRow({ project: p, onDeleted }: { project: Project; onDeleted
     setDeleting(true); setError('')
     const { error: e } = await deleteProject(p.id)
     setDeleting(false)
-    if (e) setError(e)
-    else onDeleted()
+    if (e) {
+      setError(e)
+      // keep the modal open so the user sees the failure
+    } else {
+      setConfirmOpen(false)
+      onDeleted()
+    }
   }
 
   return (
     <div
       className="card-navy overflow-hidden transition-colors group flex"
-      style={{ borderRadius: '2px', borderColor: confirming ? 'rgba(200,16,46,0.45)' : undefined }}
+      style={{ borderRadius: '2px' }}
     >
       <div
         role="button" tabIndex={0}
@@ -651,61 +661,110 @@ function ApplicationRow({ project: p, onDeleted }: { project: Project; onDeleted
             <span className="font-mono text-xs tabular-nums font-medium" style={{ color: scoreColor }}>
               {p.score_total}/100
             </span>
-            {!confirming ? (
-              <button
-                onClick={() => setConfirming(true)}
-                title="Delete this project"
-                className="font-mono text-[10px] tracking-widest px-1.5 py-0.5"
-                style={{
-                  background: 'transparent',
-                  color: 'var(--text-muted)',
-                  border: '1px solid rgba(255,255,255,0.08)',
-                  borderRadius: '2px',
-                  cursor: 'pointer',
-                }}
-                onMouseEnter={e => { e.currentTarget.style.color = 'var(--scarlet)'; e.currentTarget.style.borderColor = 'rgba(200,16,46,0.4)' }}
-                onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)' }}
-              >
-                DELETE
-              </button>
-            ) : (
-              <div className="flex items-center gap-1">
-                <button
-                  onClick={handleDelete}
-                  disabled={deleting}
-                  className="font-mono text-[10px] font-medium tracking-widest px-1.5 py-0.5"
-                  style={{
-                    background: 'var(--scarlet)',
-                    color: 'var(--cream)',
-                    border: '1px solid var(--scarlet)',
-                    borderRadius: '2px',
-                    cursor: deleting ? 'wait' : 'pointer',
-                  }}
-                >
-                  {deleting ? '…' : 'CONFIRM'}
-                </button>
-                <button
-                  onClick={() => { setConfirming(false); setError('') }}
-                  disabled={deleting}
-                  className="font-mono text-[10px] tracking-widest px-1.5 py-0.5"
-                  style={{
-                    background: 'transparent',
-                    color: 'var(--text-secondary)',
-                    border: '1px solid rgba(255,255,255,0.1)',
-                    borderRadius: '2px',
-                    cursor: deleting ? 'wait' : 'pointer',
-                  }}
-                >
-                  CANCEL
-                </button>
-              </div>
-            )}
+            <button
+              onClick={() => { setError(''); setConfirmOpen(true) }}
+              title="Delete this project"
+              className="font-mono text-[11px] tracking-widest px-2 py-1.5"
+              style={{
+                background: 'transparent',
+                color: 'var(--text-muted)',
+                border: '1px solid rgba(255,255,255,0.08)',
+                borderRadius: '2px',
+                cursor: 'pointer',
+                minHeight: '32px',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.color = 'var(--scarlet)'; e.currentTarget.style.borderColor = 'rgba(200,16,46,0.4)' }}
+              onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)' }}
+            >
+              DELETE
+            </button>
           </div>
         </div>
-        {error && (
+        {error && !confirmOpen && (
           <div className="font-mono text-[10px] mt-1" style={{ color: '#F87171' }}>{error}</div>
         )}
       </div>
+
+      {confirmOpen && createPortal(
+        <div
+          onClick={() => { if (!deleting) setConfirmOpen(false) }}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 100,
+            background: 'rgba(6,12,26,0.78)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: '20px',
+            backdropFilter: 'blur(4px)',
+          }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            className="card-navy"
+            style={{
+              maxWidth: '440px', width: '100%',
+              border: '1px solid rgba(200,16,46,0.4)',
+              borderRadius: '2px',
+              padding: '24px',
+              boxShadow: '0 20px 60px rgba(0,0,0,0.5)',
+            }}
+          >
+            <div className="font-mono text-xs tracking-widest mb-3" style={{ color: '#F87171' }}>
+              // DELETE PROJECT
+            </div>
+            <div className="font-display font-bold text-xl mb-2" style={{ color: 'var(--cream)', lineHeight: 1.3 }}>
+              Delete "{p.project_name}"
+            </div>
+            <p className="font-light text-sm mb-5" style={{ color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+              This permanently removes the project, its audit history, brief,
+              comments, and forecasts. The action cannot be undone.
+            </p>
+            {error && (
+              <div className="font-mono text-[11px] mb-3 px-3 py-2" style={{
+                color: '#F87171',
+                background: 'rgba(200,16,46,0.08)',
+                border: '1px solid rgba(200,16,46,0.25)',
+                borderRadius: '2px',
+              }}>
+                {error}
+              </div>
+            )}
+            <div className="flex gap-2">
+              <button
+                onClick={() => { if (!deleting) setConfirmOpen(false) }}
+                disabled={deleting}
+                className="flex-1 font-mono text-xs tracking-wide"
+                style={{
+                  padding: '12px',
+                  background: 'transparent',
+                  color: 'var(--text-secondary)',
+                  border: '1px solid rgba(255,255,255,0.12)',
+                  borderRadius: '2px',
+                  cursor: deleting ? 'wait' : 'pointer',
+                  minHeight: '44px',
+                }}
+              >
+                CANCEL
+              </button>
+              <button
+                onClick={handleDelete}
+                disabled={deleting}
+                className="flex-1 font-mono text-xs font-medium tracking-wide"
+                style={{
+                  padding: '12px',
+                  background: 'var(--scarlet)',
+                  color: 'var(--cream)',
+                  border: 'none',
+                  borderRadius: '2px',
+                  cursor: deleting ? 'wait' : 'pointer',
+                  minHeight: '44px',
+                }}
+              >
+                {deleting ? 'DELETING…' : 'DELETE PROJECT'}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body,
+      )}
     </div>
   )
 }
