@@ -246,9 +246,12 @@ export function Nav() {
                       to two items removes redundancy + makes Sign out a
                       one-tap target. */}
                   <DropdownLink to="/me" onSelect={() => setMenuOpen(false)} icon={<IconGear />}>My profile</DropdownLink>
+                  {/* Sign out · right-aligned to set it apart from the
+                      My profile (left-aligned settings) row · the menu reads
+                      as "settings on the left, escape on the right". */}
                   <button
                     onClick={() => { signOut(); setMenuOpen(false) }}
-                    className="w-full text-left px-3 py-2 font-mono text-xs tracking-wide transition-colors"
+                    className="w-full text-right px-3 py-2 font-mono text-xs tracking-wide transition-colors"
                     style={{ color: 'rgba(248,245,238,0.7)', background: 'none', border: 'none', cursor: 'pointer' }}
                     onMouseEnter={e => (e.currentTarget.style.color = 'var(--scarlet)')}
                     onMouseLeave={e => (e.currentTarget.style.color = 'rgba(248,245,238,0.7)')}
@@ -390,30 +393,22 @@ export function Nav() {
                   </div>
                 </div>
 
+                {/* Mobile profile section · synced with the desktop dropdown:
+                    My profile (left + gear icon · settings) and Sign out
+                    (right-aligned · escape). Backstage / Judging rulebook
+                    moved to the footer (App.tsx) — they're explanatory pages
+                    and don't belong in the user menu. */}
                 <NavLink
                   to="/me"
-                  className="mt-2 py-3 font-mono text-xs tracking-widest"
+                  className="mt-2 py-3 font-mono text-xs tracking-widest inline-flex items-center gap-2"
                   style={{ color: 'var(--cream)', textDecoration: 'none', borderBottom: '1px solid rgba(255,255,255,0.06)' }}
                 >
+                  <IconGear size={14} />
                   MY PROFILE
-                </NavLink>
-                <NavLink
-                  to="/backstage"
-                  className="py-3 font-mono text-xs tracking-widest"
-                  style={{ color: 'var(--cream)', textDecoration: 'none', borderBottom: '1px solid rgba(255,255,255,0.06)' }}
-                >
-                  BACKSTAGE
-                </NavLink>
-                <NavLink
-                  to="/rulebook"
-                  className="py-3 font-mono text-xs tracking-widest"
-                  style={{ color: 'var(--cream)', textDecoration: 'none', borderBottom: '1px solid rgba(255,255,255,0.06)' }}
-                >
-                  JUDGING RULEBOOK
                 </NavLink>
                 <button
                   onClick={() => { signOut(); setMobileOpen(false) }}
-                  className="mt-3 w-full py-3 font-mono text-xs tracking-widest text-left"
+                  className="mt-3 w-full py-3 font-mono text-xs tracking-widest text-right"
                   style={{ background: 'none', color: 'var(--scarlet)', border: 'none', cursor: 'pointer' }}
                 >
                   SIGN OUT
