@@ -232,8 +232,8 @@ a fresh deploy; no `wrangler deploy` step needed.
 |---|---|
 | **V0** — audition flow · audit engine · score card · feed | shipped |
 | **V0.5** — auth · Scout tiers · forecast UI · Artifact Library · Creator Community | shipped |
-| **V1** — %-based season engine · Stripe audition fee · payouts · season-end automation | next |
-| **V1.5** — CLI install/login · Scaffold/BKit · talent market · MCP server | after V1 |
+| **V1** — %-based season engine · Stripe audition fee · payouts · season-end automation · OAuth (Google · X · GitHub) · Terms / Privacy · CLI ANSI Shadow render · X share trigger | in progress |
+| **V1.5** — CLI login + install · Scaffold / BKit · talent market · MCP server · Twitter auto-post · Bundle curation | after V1 |
 
 ---
 
@@ -241,8 +241,21 @@ a fresh deploy; no `wrangler deploy` step needed.
 
 - Platform — <https://commit.show>
 - Rulebook — <https://commit.show/rulebook>
+- Privacy — <https://commit.show/privacy>
+- Terms — <https://commit.show/terms>
 - CLI repo — <https://github.com/commitshow/cli>
 - npm package — <https://www.npmjs.com/package/commitshow>
+- REST API — <https://api.commit.show/openapi.json>
+
+---
+
+## License
+
+[MIT](./LICENSE) · © 2026 [Madeflo Inc.](https://commit.show)
+
+The platform is operated by **Madeflo Inc.**, a Delaware corporation.
+"commit.show" is the product brand; legal filings, payouts, and external
+service registrations all use the Madeflo Inc. entity.
 
 ---
 
@@ -251,5 +264,5 @@ a fresh deploy; no `wrangler deploy` step needed.
 </p>
 
 <p align="center">
-  © 2026 commit.show · All rights reserved
+  © 2026 Madeflo Inc. · commit.show · All rights reserved
 </p>
