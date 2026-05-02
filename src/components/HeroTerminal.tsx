@@ -17,38 +17,41 @@
 import { useEffect, useRef, useState } from 'react'
 import { useRecentAudits, type AuditDemo } from '../lib/recentAudits'
 
-// ANSI Shadow figlet font · transcribed via oh-my-logo --filled. Same
-// glyphs the CLI renders (commitshow/cli src/lib/render.ts), so a hero-
-// page audit visual matches a terminal screenshot pixel-for-pixel.
-// Variable-width per glyph (4 to 10 cols), pre-padded so adjacent digits
-// concat with a single space.
+// 5×7 pixel matrix per digit · matches commitshow/cli render.ts. Each
+// "1" pixel renders as a 2-char block (██) with a 1-char gap between
+// pixels, giving the LCD-style block-grid feel CEO referenced from the
+// Claude Code logo. ANSI Shadow gave a solid silhouette; this one
+// shows visible inter-pixel seams so each "block" reads as its own
+// cell within the digit.
 const BIG_DIGITS: Record<string, string[]> = {
-  "0": ["  ██████╗ ", " ██╔═████╗", " ██║██╔██║", " ████╔╝██║", " ╚██████╔╝", "  ╚═════╝ "],
-  "1": ["  ██╗", " ███║", " ╚██║", "  ██║", "  ██║", "  ╚═╝"],
-  "2": [" ██████╗ ", " ╚════██╗", "  █████╔╝", " ██╔═══╝ ", " ███████╗", " ╚══════╝"],
-  "3": [" ██████╗ ", " ╚════██╗", "  █████╔╝", "  ╚═══██╗", " ██████╔╝", " ╚═════╝ "],
-  "4": [" ██╗  ██╗", " ██║  ██║", " ███████║", " ╚════██║", "      ██║", "      ╚═╝"],
-  "5": [" ███████╗", " ██╔════╝", " ███████╗", " ╚════██║", " ███████║", " ╚══════╝"],
-  "6": ["  ██████╗ ", " ██╔════╝ ", " ███████╗ ", " ██╔═══██╗", " ╚██████╔╝", "  ╚═════╝ "],
-  "7": [" ███████╗", " ╚════██║", "     ██╔╝", "    ██╔╝ ", "    ██║  ", "    ╚═╝  "],
-  "8": ["  █████╗ ", " ██╔══██╗", " ╚█████╔╝", " ██╔══██╗", " ╚█████╔╝", "  ╚════╝ "],
-  "9": ["  █████╗ ", " ██╔══██╗", " ╚██████║", "  ╚═══██║", "  █████╔╝", "  ╚════╝ "],
+  "0": ["11111","10001","10001","10001","10001","10001","11111"],
+  "1": ["00100","01100","00100","00100","00100","00100","01110"],
+  "2": ["11111","00001","00001","11111","10000","10000","11111"],
+  "3": ["11111","00001","00001","11111","00001","00001","11111"],
+  "4": ["10001","10001","10001","11111","00001","00001","00001"],
+  "5": ["11111","10000","10000","11111","00001","00001","11111"],
+  "6": ["11111","10000","10000","11111","10001","10001","11111"],
+  "7": ["11111","00001","00001","00001","00001","00001","00001"],
+  "8": ["11111","10001","10001","11111","10001","10001","11111"],
+  "9": ["11111","10001","10001","11111","00001","00001","11111"],
 }
 
-const BIG_ROWS = 6
+const BIG_ROWS = 7
+const PIXEL_FILL  = "██"
+const PIXEL_BLANK = "  "
+const PIXEL_GAP   = " "
+const DIGIT_GAP   = "   "
 
 function bigDigits(n: string): string[] {
   const rows = Array.from({ length: BIG_ROWS }, () => "")
-  // 0 explicit gutter — each glyph already carries its own leading and
-  // trailing whitespace, so concatenating with no extra gap still gives
-  // a visible 2-col space. Tightened from 1 col on 2026-05-02 to keep
-  // adjacent digits feeling like a single number, not two separate ones.
-  const GAP = ""
   const chars = n.split("")
   for (let i = 0; i < chars.length; i++) {
-    const glyph = BIG_DIGITS[chars[i]] ?? BIG_DIGITS["0"]
+    const m = BIG_DIGITS[chars[i]] ?? BIG_DIGITS["0"]
+    const glyphRows = m.map(row =>
+      row.split("").map(c => c === "1" ? PIXEL_FILL : PIXEL_BLANK).join(PIXEL_GAP)
+    )
     for (let r = 0; r < BIG_ROWS; r++) {
-      rows[r] += glyph[r] + (i < chars.length - 1 ? GAP : "")
+      rows[r] += glyphRows[r] + (i < chars.length - 1 ? DIGIT_GAP : "")
     }
   }
   return rows
@@ -325,7 +328,12 @@ function LineRow({
               // brand mono, with a generic monospace fallback for any env
               // where DM Mono hasn't loaded yet.
               fontFamily:    '"DM Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
-              fontSize:      '26px',
+              // 7-row pixel-grid renderer is 1 row taller than the previous
+              // ANSI Shadow (6 rows) AND each pixel carries a 1-cell gap, so
+              // the same fontSize gives more vertical and horizontal presence
+              // out of the box. Bumped 26 → 30 so the score lands at hero
+              // scale instead of reading stubby beside the strengths/concerns.
+              fontSize:      '30px',
               lineHeight:    1,
               letterSpacing: 0,
               whiteSpace:    'pre',
