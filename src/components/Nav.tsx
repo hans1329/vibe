@@ -241,8 +241,9 @@ export function Nav() {
                   </NavLink>
                   <DropdownLink to="/me" onSelect={() => setMenuOpen(false)}>My profile</DropdownLink>
                   <DropdownLink to="/ladder" onSelect={() => setMenuOpen(false)}>Browse the ladder</DropdownLink>
-                  <DropdownLink to="/backstage" onSelect={() => setMenuOpen(false)}>Backstage</DropdownLink>
-                  <DropdownLink to="/rulebook" onSelect={() => setMenuOpen(false)}>Judging rulebook</DropdownLink>
+                  {/* Backstage / Judging rulebook are explanatory pages — they
+                      live in the footer (App.tsx). Profile dropdown should
+                      stay user-action only (profile / navigate / sign out). */}
                   <button
                     onClick={() => { signOut(); setMenuOpen(false) }}
                     className="w-full text-left px-3 py-2 font-mono text-xs tracking-wide transition-colors"
