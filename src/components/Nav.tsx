@@ -145,7 +145,7 @@ export function Nav() {
             onMouseEnter={e => (e.currentTarget.style.background = 'var(--gold-400)')}
             onMouseLeave={e => (e.currentTarget.style.background = 'var(--gold-500)')}
           >
-            Audit
+            Audition
           </button>
 
           {user && <NotificationBell recipientId={user.id} />}
