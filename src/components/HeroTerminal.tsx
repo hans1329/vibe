@@ -318,11 +318,19 @@ function LineRow({
             key={i}
             style={{
               color:         '#F0C040',
-              fontSize:      '18px',
+              // Must force monospace on the digit row directly — the hero
+              // panel inherits DM Sans for body copy, which renders ANSI
+              // Shadow's box-drawing connectors (╔╗╚╝═║) at proportional
+              // widths and the silhouette falls apart. DM Mono is the
+              // brand mono, with a generic monospace fallback for any env
+              // where DM Mono hasn't loaded yet.
+              fontFamily:    '"DM Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
+              fontSize:      '32px',
               lineHeight:    1,
               letterSpacing: 0,
               whiteSpace:    'pre',
               fontWeight:    700,
+              fontVariantLigatures: 'none',
             }}
           >
             {row}
