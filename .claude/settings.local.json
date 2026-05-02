@@ -34,7 +34,12 @@
       "Bash(curl -sS --max-time 10 -o /dev/null -w \"HTTP %{http_code}\\\\n\" https://www.commit.show/)",
       "Bash(git -C /Users/hans1/vibe add -A src/lib/community.ts src/components/CommunityLayout.tsx src/components/CommunityPostCard.tsx src/components/CommunityTagFilter.tsx src/pages/BuildLogsPage.tsx src/pages/StacksPage.tsx src/pages/AsksPage.tsx src/pages/OfficeHoursPage.tsx src/App.tsx src/components/Nav.tsx)",
       "Bash(git -C /Users/hans1/vibe commit -m ' *)",
-      "Bash(git -C /Users/hans1/vibe add src/components/TagInput.tsx src/pages/NewCommunityPostPage.tsx src/pages/BuildLogsPage.tsx src/pages/StacksPage.tsx src/pages/AsksPage.tsx src/App.tsx)"
+      "Bash(git -C /Users/hans1/vibe add src/components/TagInput.tsx src/pages/NewCommunityPostPage.tsx src/pages/BuildLogsPage.tsx src/pages/StacksPage.tsx src/pages/AsksPage.tsx src/App.tsx)",
+      "Bash(ssh -T git@github.com)",
+      "Bash(gh auth *)",
+      "Bash(curl -s -o /dev/null -w \"/privacy %{http_code}\\\\n\" https://commit.show/privacy)",
+      "Bash(curl -s -o /dev/null -w \"/terms   %{http_code}\\\\n\" https://commit.show/terms)",
+      "Bash(curl -s https://commit.show/)"
     ]
   }
 }

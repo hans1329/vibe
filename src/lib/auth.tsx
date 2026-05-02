@@ -55,23 +55,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     loadMember(session.user.id)
   }, [session?.user?.id])
 
-  // Sync X (Twitter) identity → members.x_handle whenever the auth user's
-  // identity list includes a twitter row. Covers (1) signup via X OAuth,
-  // (2) link X to an existing account from VerifiedIdentities. The RPC is
-  // idempotent — calling on every session change is cheap and keeps the
-  // denormalized handle fresh if the user later renames on X.
+  // Sync OAuth identity providers → members.{x,github}_handle whenever the
+  // auth user's identity list includes a recognized provider row. Covers
+  // (1) signup via that provider, (2) linking from VerifiedIdentities. RPC
+  // is idempotent — calling on every session change keeps the denormalized
+  // handles fresh if the user later renames on the provider's side.
   useEffect(() => {
     if (!session?.user) return
-    const hasTwitter = (session.user.identities ?? []).some(i => i.provider === 'twitter')
-    if (!hasTwitter) return
-    supabase.rpc('sync_x_identity', { p_user_id: session.user.id }).then(({ error }) => {
+    const providers = new Set((session.user.identities ?? []).map(i => i.provider))
+    let mounted = true
+
+    const syncProvider = async (
+      provider: 'twitter' | 'github',
+      rpc: 'sync_x_identity' | 'sync_github_identity',
+    ) => {
+      if (!providers.has(provider)) return false
+      const { error } = await supabase.rpc(rpc, { p_user_id: session.user.id })
       if (error) {
-        console.warn('[auth] sync_x_identity failed', error.message)
-        return
+        console.warn(`[auth] ${rpc} failed`, error.message)
+        return false
       }
-      // Pull the updated members row so x_handle propagates to the UI.
-      loadMember(session.user.id)
+      return true
+    }
+
+    Promise.all([
+      syncProvider('twitter', 'sync_x_identity'),
+      syncProvider('github',  'sync_github_identity'),
+    ]).then(results => {
+      if (!mounted) return
+      // If anything synced, refresh the member row so the UI sees the new
+      // handles. One refetch per session-change covers all providers.
+      if (results.some(Boolean)) loadMember(session.user.id)
     })
+
+    return () => { mounted = false }
   }, [session?.user?.id, (session?.user?.identities ?? []).length])
 
   const value: AuthState = {

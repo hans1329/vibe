@@ -216,7 +216,8 @@ export const PUBLIC_MEMBER_COLUMNS =
   'id, display_name, avatar_url, tier, activity_points, monthly_votes_used, ' +
   'votes_reset_at, creator_grade, total_graduated, avg_auto_score, ' +
   'preferred_stack, created_at, updated_at, grade_recalc_at, is_admin, ' +
-  'x_handle, x_provider_id, x_connected_at'
+  'x_handle, x_provider_id, x_connected_at, ' +
+  'github_handle, github_provider_id, github_connected_at'
 
 export const PUBLIC_PROJECT_COLUMNS =
   'id, created_at, github_url, live_url, description, lh_performance, ' +
@@ -249,6 +250,12 @@ export type Member = {
   x_handle: string | null
   x_provider_id: string | null
   x_connected_at: string | null
+  // GitHub OAuth identity · 20260503_github_oauth_identity migration.
+  // Same shape as the X triple. github_handle = login (e.g. "octocat"),
+  // github_provider_id = stable numeric user id from GitHub.
+  github_handle: string | null
+  github_provider_id: string | null
+  github_connected_at: string | null
 }
 
 // v1.5 · member_stack_auto view · auto-inferred from projects.tech_layers
