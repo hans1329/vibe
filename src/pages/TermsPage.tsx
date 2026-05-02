@@ -45,12 +45,13 @@ export function TermsPage() {
 
         <Section title="1 · Welcome" anchor="welcome">
           <P>
-            commit.show ("commit.show", "we", "us", or "our") operates a public
-            league for AI-assisted ("vibe-coded") software projects, where
-            members can submit projects, receive automated audit reports, and
-            participate in seasonal evaluations. By accessing or using
-            commit.show (the "Service"), you agree to these Terms of Service
-            (the "Terms").
+            commit.show is operated by <B>Madeflo Inc.</B>, a Delaware
+            corporation ("Madeflo", "commit.show", "we", "us", or "our"),
+            and provides a public league for AI-assisted ("vibe-coded")
+            software projects, where members can submit projects, receive
+            automated audit reports, and participate in seasonal
+            evaluations. By accessing or using commit.show (the "Service"),
+            you agree to these Terms of Service (the "Terms").
           </P>
           <P>
             If you do not agree to these Terms, do not use the Service.
@@ -170,9 +171,9 @@ export function TermsPage() {
           <P>
             The commit.show name, logo, audit-engine framework, ladder
             algorithm, scoring rubrics, and all original site content (other
-            than User Content) are owned by us and protected by intellectual
-            property laws. You may not use our marks without prior written
-            consent.
+            than User Content) are owned by Madeflo Inc. and protected by
+            intellectual property laws. You may not use our marks without
+            prior written consent.
           </P>
         </Section>
 
@@ -200,7 +201,7 @@ export function TermsPage() {
 
         <Section title="11 · Limitation of liability" anchor="liability">
           <P>
-            TO THE MAXIMUM EXTENT PERMITTED BY LAW, COMMIT.SHOW WILL NOT BE
+            TO THE MAXIMUM EXTENT PERMITTED BY LAW, MADEFLO INC. WILL NOT BE
             LIABLE FOR ANY INDIRECT, INCIDENTAL, CONSEQUENTIAL, SPECIAL, OR
             PUNITIVE DAMAGES, OR FOR ANY LOSS OF PROFITS, REVENUES, DATA, OR
             BUSINESS OPPORTUNITIES, ARISING OUT OF OR RELATED TO THE SERVICE.

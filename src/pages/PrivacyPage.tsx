@@ -53,10 +53,11 @@ export function PrivacyPage() {
 
         <Section title="1 · Who we are" anchor="who">
           <P>
-            commit.show ("commit.show", "we", "us", or "our") is a public
-            league for AI-assisted software projects. This policy explains
-            what personal information we collect, how we use it, and the
-            choices you have.
+            commit.show is operated by <B>Madeflo Inc.</B>, a Delaware
+            corporation ("Madeflo", "commit.show", "we", "us", or "our"),
+            and runs a public league for AI-assisted software projects.
+            This policy explains what personal information we collect, how
+            we use it, and the choices you have.
           </P>
         </Section>
 
@@ -201,11 +202,11 @@ export function PrivacyPage() {
 
         <Section title="10 · International transfers" anchor="transfers">
           <P>
-            We are based in the United States, and our service providers
-            may operate in multiple regions. By using the Service you
-            consent to your information being processed in the United
-            States and other countries with different data-protection laws
-            than your home country.
+            Madeflo Inc. is incorporated in Delaware, United States, and
+            our service providers may operate in multiple regions. By using
+            the Service you consent to your information being processed in
+            the United States and other countries with different
+            data-protection laws than your home country.
           </P>
         </Section>
 
