@@ -326,12 +326,12 @@ function LineRow({
               // brand mono, with a generic monospace fallback for any env
               // where DM Mono hasn't loaded yet.
               fontFamily:    '"DM Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
-              // 7-row pixel-grid renderer is 1 row taller than the previous
-              // ANSI Shadow (6 rows) AND each pixel carries a 1-cell gap, so
-              // the same fontSize gives more vertical and horizontal presence
-              // out of the box. Bumped 26 → 30 so the score lands at hero
-              // scale instead of reading stubby beside the strengths/concerns.
-              fontSize:      '30px',
+              // Responsive · "100" (the widest 3-digit ANSI Shadow glyph)
+              // at 30px wraps off-screen on a 360-414px phone viewport.
+              // clamp(18px, 4.5vw, 26px): 18px floor keeps it inside the
+              // narrowest mobile width, 26px ceiling preserves hero scale
+              // on desktop without reverting to the "stubby" 18px feel.
+              fontSize:      'clamp(18px, 4.5vw, 26px)',
               lineHeight:    1,
               letterSpacing: 0,
               whiteSpace:    'pre',
