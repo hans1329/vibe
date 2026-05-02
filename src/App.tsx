@@ -17,6 +17,8 @@ const LibraryPage             = lazy(() => import('./pages/LibraryPage').then(m 
 const LibraryDetailPage       = lazy(() => import('./pages/LibraryDetailPage').then(m => ({ default: m.LibraryDetailPage })))
 const ScoutsPage              = lazy(() => import('./pages/ScoutsPage').then(m => ({ default: m.ScoutsPage })))
 const RulebookPage            = lazy(() => import('./pages/RulebookPage').then(m => ({ default: m.RulebookPage })))
+const TermsPage               = lazy(() => import('./pages/TermsPage').then(m => ({ default: m.TermsPage })))
+const PrivacyPage             = lazy(() => import('./pages/PrivacyPage').then(m => ({ default: m.PrivacyPage })))
 const BackstagePage           = lazy(() => import('./pages/BackstagePage').then(m => ({ default: m.BackstagePage })))
 const AuditPage               = lazy(() => import('./pages/AuditPage').then(m => ({ default: m.AuditPage })))
 const AdminPage               = lazy(() => import('./pages/AdminPage').then(m => ({ default: m.AdminPage })))
@@ -61,6 +63,8 @@ export default function App() {
           <Route path="/leaderboard"      element={<LeaderboardPage />} />
           <Route path="/ladder"           element={<LadderPage />} />
           <Route path="/rulebook"         element={<RulebookPage />} />
+          <Route path="/terms"            element={<TermsPage />} />
+          <Route path="/privacy"          element={<PrivacyPage />} />
           <Route path="/backstage"        element={<BackstagePage />} />
           <Route path="/audit"            element={<AuditPage />} />
           <Route path="/admin"            element={<AdminPage />} />
@@ -95,6 +99,10 @@ export default function App() {
           <a href="/backstage" style={{ color: 'inherit', textDecoration: 'none' }}>Backstage</a>
           <span style={{ color: 'rgba(255,255,255,0.15)' }}>·</span>
           <a href="/rulebook"  style={{ color: 'inherit', textDecoration: 'none' }}>Rulebook</a>
+          <span style={{ color: 'rgba(255,255,255,0.15)' }}>·</span>
+          <a href="/terms"     style={{ color: 'inherit', textDecoration: 'none' }}>Terms</a>
+          <span style={{ color: 'rgba(255,255,255,0.15)' }}>·</span>
+          <a href="/privacy"   style={{ color: 'inherit', textDecoration: 'none' }}>Privacy</a>
         </div>
         <p className="font-mono text-[11px]" style={{ color: 'var(--text-faint)' }}>
           Vibe Coding Ladder · US Launch 2026 · All scores algorithmically determined
