@@ -4,10 +4,9 @@ import type { Project, ScoutTier } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import {
   castForecast,
-  hasForecasted,
+  priorForecastCount,
   loadMemberStats,
   ForecastQuotaError,
-  AlreadyForecastedError,
 } from '../lib/forecast'
 import { EmotionTagRow } from './EmotionTagRow'
 
@@ -37,7 +36,11 @@ export function ForecastModal({ project, onClose, onCast }: ForecastModalProps) 
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState<null | { tier: ScoutTier; weight: number; ap: number }>(null)
-  const [alreadyCast, setAlreadyCast] = useState<boolean | null>(null)
+  // priorCount = how many forecasts this member already cast on this
+  // project this season. PRD §1-A ① / §9 lets the same Scout cast ×N
+  // (conviction expressed as multiple votes inside their monthly quota),
+  // so this is informational, NOT a gate.
+  const [priorCount, setPriorCount] = useState<number | null>(null)
   const [tier, setTier] = useState<ScoutTier>('Bronze')
   const [quotaRemaining, setQuotaRemaining] = useState<number | null>(null)
   const [quotaCap, setQuotaCap] = useState<number | null>(null)
@@ -50,13 +53,15 @@ export function ForecastModal({ project, onClose, onCast }: ForecastModalProps) 
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose])
 
-  // Load scout status + previous forecast state.
+  // Load scout status + how many forecasts the member already cast on this
+  // project this season. The count surfaces in the UI as "You've cast N
+  // already" but does NOT gate the submit button — see priorCount comment.
   useEffect(() => {
     if (!user?.id) return
     ;(async () => {
       const [stats, prior] = await Promise.all([
         loadMemberStats(user.id),
-        hasForecasted(user.id, project.id),
+        priorForecastCount(user.id, project.id),
       ])
       if (stats) {
         setTier(stats.tier)
@@ -64,11 +69,11 @@ export function ForecastModal({ project, onClose, onCast }: ForecastModalProps) 
         setQuotaCap(stats.monthly_vote_cap)
         setAP(stats.activity_points)
       }
-      setAlreadyCast(prior)
+      setPriorCount(prior)
     })()
   }, [user?.id, project.id])
 
-  const canSubmit = user && !busy && alreadyCast === false && (quotaRemaining ?? 0) > 0
+  const canSubmit = user && !busy && (quotaRemaining ?? 0) > 0
 
   const handleSubmit = async () => {
     if (!user?.id) return
@@ -81,9 +86,6 @@ export function ForecastModal({ project, onClose, onCast }: ForecastModalProps) 
     } catch (e) {
       if (e instanceof ForecastQuotaError) {
         setError(`Monthly quota exhausted for ${e.tier} tier (${e.used} / ${e.cap}). Resets on the 1st.`)
-      } else if (e instanceof AlreadyForecastedError) {
-        setError("You've already forecasted this project this season.")
-        setAlreadyCast(true)
       } else {
         setError((e as Error).message || 'Failed to cast forecast.')
       }
@@ -120,20 +122,30 @@ export function ForecastModal({ project, onClose, onCast }: ForecastModalProps) 
           Current score: {project.score_total} / 100
         </p>
 
-        {/* Scout status strip */}
+        {/* Scout status · two labelled rows so the lifetime AP count never
+            fuses with the monthly votes-left number (CEO read "30 AP earned
+            18 / 20" as one phrase). Labels on the left, values on the right. */}
         {user && (
-          <div className="mb-5 px-3 py-2 flex items-center justify-between font-mono text-xs" style={{
+          <div className="mb-5 px-3 py-2.5 font-mono text-xs space-y-1" style={{
             background: 'rgba(255,255,255,0.02)',
             border: '1px solid rgba(255,255,255,0.06)',
             borderRadius: '2px',
           }}>
-            <span>
-              <span style={{ color: TIER_COLOR[tier] }}>{tier}</span>
-              <span style={{ color: 'rgba(248,245,238,0.35)' }}> · {ap.toLocaleString()} AP earned</span>
-            </span>
-            <span style={{ color: quotaRemaining === 0 ? '#C8102E' : 'rgba(248,245,238,0.45)' }}>
-              {quotaRemaining ?? '—'} / {quotaCap ?? '—'} votes left this month
-            </span>
+            <div className="flex items-baseline justify-between gap-3">
+              <span className="text-[10px] tracking-widest" style={{ color: 'var(--text-label)' }}>TIER</span>
+              <span>
+                <span style={{ color: TIER_COLOR[tier] }}>{tier}</span>
+                <span style={{ color: 'rgba(248,245,238,0.35)' }}> · {ap.toLocaleString()} AP earned</span>
+              </span>
+            </div>
+            <div className="flex items-baseline justify-between gap-3" style={{ borderTop: '1px solid rgba(255,255,255,0.04)', paddingTop: '5px' }}>
+              <span className="text-[10px] tracking-widest" style={{ color: 'var(--text-label)' }}>THIS MONTH</span>
+              <span style={{ color: quotaRemaining === 0 ? '#C8102E' : 'rgba(248,245,238,0.55)' }}>
+                <strong style={{ color: quotaRemaining === 0 ? '#C8102E' : 'var(--cream)' }}>{quotaRemaining ?? '—'}</strong>
+                <span style={{ color: 'rgba(248,245,238,0.35)' }}> / {quotaCap ?? '—'}</span>
+                <span style={{ color: 'rgba(248,245,238,0.35)' }}> votes left</span>
+              </span>
+            </div>
           </div>
         )}
 
@@ -215,15 +227,24 @@ export function ForecastModal({ project, onClose, onCast }: ForecastModalProps) 
               DONE
             </button>
           </div>
-        ) : alreadyCast ? (
-          <div className="px-4 py-4 text-center" style={{ background: 'rgba(240,192,64,0.05)', border: '1px solid rgba(240,192,64,0.25)', borderRadius: '2px' }}>
-            <div className="font-mono text-xs tracking-widest mb-1" style={{ color: 'var(--gold-500)' }}>ALREADY FORECASTED</div>
-            <div className="font-light text-sm" style={{ color: 'rgba(248,245,238,0.6)' }}>
-              You've already cast a forecast on this project this season. One per Scout per season.
-            </div>
-          </div>
         ) : (
           <div className="space-y-4">
+            {/* Prior-cast chip · informational only, never a gate. PRD lets
+                a Scout pile multiple casts onto a project they're convinced
+                about; the chip just makes that history visible so they don't
+                spam by accident. */}
+            {priorCount !== null && priorCount > 0 && (
+              <div className="px-3 py-2 font-mono text-[11px]" style={{
+                background: 'rgba(240,192,64,0.05)',
+                border: '1px solid rgba(240,192,64,0.2)',
+                borderRadius: '2px',
+                color: 'rgba(248,245,238,0.65)',
+              }}>
+                You've cast <strong style={{ color: 'var(--gold-500)' }}>{priorCount}</strong> {priorCount === 1 ? 'forecast' : 'forecasts'} on this project already this season.
+                Cast another to express stronger conviction · burns one from your monthly quota.
+              </div>
+            )}
+
             <div>
               <label className="block font-mono text-xs tracking-widest mb-2" style={{ color: 'var(--gold-500)' }}>
                 YOUR GRADUATION FORECAST (0 – 100)

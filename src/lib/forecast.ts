@@ -32,9 +32,12 @@ export class ForecastQuotaError extends Error {
   }
 }
 
-export class AlreadyForecastedError extends Error {
-  constructor() { super('You have already forecasted this project this season.'); this.name = 'AlreadyForecastedError' }
-}
+// AlreadyForecastedError removed 2026-05-03 · CEO confirmed PRD §1-A ① /
+// §9 ×N "몰빵" stays — same Scout can cast multiple forecasts on the same
+// project to express stronger conviction. Quota is throttled by the monthly
+// ballot wallet (Bronze 20 / Silver 40 / Gold 60 / Platinum 80), not by a
+// per-project gate. The votes_member_project_season_uq UNIQUE constraint
+// was already dropped in 20260424_v2_prd_realignment.sql.
 
 // Fetch the current live quarterly event id. §11-NEW.8 · was: seasons table.
 // events.id == seasons.id (UUID preserved by Migration A), so the foreign
@@ -78,9 +81,6 @@ export async function castForecast(input: CastForecastInput): Promise<CastForeca
       }
       throw new ForecastQuotaError(msg, 'Bronze', 0, 0)
     }
-    if (/duplicate key|votes_member_project_season_uq/i.test(msg)) {
-      throw new AlreadyForecastedError()
-    }
     throw error
   }
 
@@ -103,15 +103,19 @@ export async function loadMemberStats(memberId: string): Promise<MemberStats | n
   return (data as MemberStats | null) ?? null
 }
 
-// Whether the member has already forecasted a given project this season.
-export async function hasForecasted(memberId: string, projectId: string, seasonId?: string | null): Promise<boolean> {
+/**
+ * How many forecasts the member has already cast on this project this
+ * season. Returned as a count (not boolean) because PRD §9 allows ×N
+ * casts — UI shows "You've cast 3 already · cast another?" rather than
+ * gating after the first one.
+ */
+export async function priorForecastCount(memberId: string, projectId: string, seasonId?: string | null): Promise<number> {
   const effectiveSeason = seasonId ?? await resolveActiveSeasonId()
-  const { data } = await supabase
+  const { count } = await supabase
     .from('votes')
-    .select('id')
+    .select('id', { count: 'exact', head: true })
     .eq('member_id', memberId)
     .eq('project_id', projectId)
     .eq('season_id', effectiveSeason)
-    .maybeSingle()
-  return !!data
+  return count ?? 0
 }
