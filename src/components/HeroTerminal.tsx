@@ -17,24 +17,37 @@
 import { useEffect, useRef, useState } from 'react'
 import { useRecentAudits, type AuditDemo } from '../lib/recentAudits'
 
-// 5×5 ASCII font for the big score · same shapes as commitshow/cli render.ts
-// so the visual is the SAME mark a user gets in their terminal.
+// ANSI Shadow figlet font · transcribed via oh-my-logo --filled. Same
+// glyphs the CLI renders (commitshow/cli src/lib/render.ts), so a hero-
+// page audit visual matches a terminal screenshot pixel-for-pixel.
+// Variable-width per glyph (4 to 10 cols), pre-padded so adjacent digits
+// concat with a single space.
 const BIG_DIGITS: Record<string, string[]> = {
-  '0': ['█▀▀▀█', '█   █', '█   █', '█   █', '█▄▄▄█'],
-  '1': ['  ▄█ ', '   █ ', '   █ ', '   █ ', '  ▄█▄'],
-  '2': ['█▀▀▀█', '    █', '▄▀▀▀▘', '█    ', '█▄▄▄▄'],
-  '3': ['█▀▀▀█', '    █', ' ▀▀▀█', '    █', '█▄▄▄█'],
-  '4': ['█   █', '█   █', '█▀▀▀█', '    █', '    █'],
-  '5': ['█▀▀▀▀', '█    ', '▀▀▀▀█', '    █', '█▄▄▄█'],
-  '6': ['█▀▀▀▀', '█    ', '█▀▀▀█', '█   █', '█▄▄▄█'],
-  '7': ['▀▀▀▀█', '   █ ', '  █  ', ' █   ', '█    '],
-  '8': ['█▀▀▀█', '█   █', '█▀▀▀█', '█   █', '█▄▄▄█'],
-  '9': ['█▀▀▀█', '█   █', '█▀▀▀█', '    █', '    █'],
+  "0": ["  ██████╗ ", " ██╔═████╗", " ██║██╔██║", " ████╔╝██║", " ╚██████╔╝", "  ╚═════╝ "],
+  "1": ["  ██╗", " ███║", " ╚██║", "  ██║", "  ██║", "  ╚═╝"],
+  "2": [" ██████╗ ", " ╚════██╗", "  █████╔╝", " ██╔═══╝ ", " ███████╗", " ╚══════╝"],
+  "3": [" ██████╗ ", " ╚════██╗", "  █████╔╝", "  ╚═══██╗", " ██████╔╝", " ╚═════╝ "],
+  "4": [" ██╗  ██╗", " ██║  ██║", " ███████║", " ╚════██║", "      ██║", "      ╚═╝"],
+  "5": [" ███████╗", " ██╔════╝", " ███████╗", " ╚════██║", " ███████║", " ╚══════╝"],
+  "6": ["  ██████╗ ", " ██╔════╝ ", " ███████╗ ", " ██╔═══██╗", " ╚██████╔╝", "  ╚═════╝ "],
+  "7": [" ███████╗", " ╚════██║", "     ██╔╝", "    ██╔╝ ", "    ██║  ", "    ╚═╝  "],
+  "8": ["  █████╗ ", " ██╔══██╗", " ╚█████╔╝", " ██╔══██╗", " ╚█████╔╝", "  ╚════╝ "],
+  "9": ["  █████╗ ", " ██╔══██╗", " ╚██████║", "  ╚═══██║", "  █████╔╝", "  ╚════╝ "],
 }
 
+const BIG_ROWS = 6
+
 function bigDigits(n: string): string[] {
-  const cols = n.split('').map(d => BIG_DIGITS[d] ?? BIG_DIGITS['0'])
-  return Array.from({ length: 5 }, (_, row) => cols.map(c => c[row]).join(' '))
+  const rows = Array.from({ length: BIG_ROWS }, () => "")
+  const GAP = " "
+  const chars = n.split("")
+  for (let i = 0; i < chars.length; i++) {
+    const glyph = BIG_DIGITS[chars[i]] ?? BIG_DIGITS["0"]
+    for (let r = 0; r < BIG_ROWS; r++) {
+      rows[r] += glyph[r] + (i < chars.length - 1 ? GAP : "")
+    }
+  }
+  return rows
 }
 
 // One line of terminal output. `pre` colors the line; `cursor` shows a
@@ -288,27 +301,22 @@ function LineRow({
 
   if (line.kind === 'big') {
     const rows = bigDigits(line.score)
-    // Plain monospace ASCII · no shadow / glow / extrusion. Fixed-integer
-    // fontSize keeps the grid tight on wide screens (sub-pixel drift was
-    // the breakage we hit at clamp() midpoints).
-    //
-    // letterSpacing 0.25em adds visible gap BETWEEN constituent block
-    // chars within each digit so adjacent '█▀▄' boxes don't visually
-    // fuse into one solid blob. The spacing applies uniformly to all
-    // characters in the row (digit blocks + inter-digit spaces) so the
-    // monospace grid stays aligned. lineHeight 1.2 gives matching
-    // vertical breathing room between rows so each digit reads as a
-    // collection of distinct boxes rather than a packed silhouette.
+    // ANSI Shadow rendering · same glyphs the CLI emits (oh-my-logo style).
+    // The block-drawing chars (╔═╗║╚╝) only join cleanly at letter-spacing
+    // 0 — any positive tracking introduces gaps between segments and the
+    // numeral falls apart visually. lineHeight 1 keeps row segments
+    // touching so the chunky pixel silhouette holds together.
+    // Color: peach pixel-ink to match the CLI hero (CLAUDE Code family).
     return (
       <div className="text-center" style={{ margin: '0.6em 0' }}>
         {rows.map((row, i) => (
           <div
             key={i}
             style={{
-              color:         '#D4A838',
-              fontSize:      '16px',
-              lineHeight:    1.2,
-              letterSpacing: '0.25em',
+              color:         '#E8946E',
+              fontSize:      '18px',
+              lineHeight:    1,
+              letterSpacing: 0,
               whiteSpace:    'pre',
               fontWeight:    700,
             }}
