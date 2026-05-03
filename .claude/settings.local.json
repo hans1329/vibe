@@ -39,7 +39,22 @@
       "Bash(gh auth *)",
       "Bash(curl -s -o /dev/null -w \"/privacy %{http_code}\\\\n\" https://commit.show/privacy)",
       "Bash(curl -s -o /dev/null -w \"/terms   %{http_code}\\\\n\" https://commit.show/terms)",
-      "Bash(curl -s https://commit.show/)"
+      "Bash(curl -s https://commit.show/)",
+      "Bash(curl -s https://raw.githubusercontent.com/filipecalegario/awesome-vibe-coding/main/README.md)",
+      "Bash(curl -s -o /dev/null -w '%{http_code}' https://api.github.com/repos/__TRACKED_VAR__)",
+      "Bash(curl -s https://raw.githubusercontent.com/__TRACKED_VAR__/main/README.md)",
+      "Bash(curl -s \"https://raw.githubusercontent.com/agarrharr/awesome-cli-apps/master/readme.md\")",
+      "Bash(curl -s \"https://raw.githubusercontent.com/jondot/awesome-devenv/master/README.md\")",
+      "Bash(curl -s \"https://raw.githubusercontent.com/hesreallyhim/awesome-claude-code/main/README.md\")",
+      "Bash(curl -s \"https://raw.githubusercontent.com/lyqht/awesome-supabase/main/README.md\")",
+      "Bash('/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' --headless --disable-gpu --hide-scrollbars --window-size=1280,640 --screenshot=/Users/hans1/vibe/public/og-image.png --default-background-color=00000000 file:///tmp/og-render.html)",
+      "Bash('/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' --headless --disable-gpu --hide-scrollbars --window-size=1280,640 --screenshot=/Users/hans1/vibe/public/og-image.png file:///Users/hans1/vibe/public/og-image-source.svg)",
+      "Bash(sed '1d' /Users/hans1/vibe/public/og-image-source.svg)",
+      "Bash('/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' --headless --disable-gpu --hide-scrollbars --force-device-scale-factor=1 --window-size=1280,640 --screenshot=/Users/hans1/vibe/public/og-image.png file:///tmp/og-render.html)",
+      "Bash('/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' --headless --disable-gpu --hide-scrollbars --force-device-scale-factor=1 --window-size=1280,720 --screenshot=/tmp/og-large.png file:///Users/hans1/vibe/public/og-image-source.svg)",
+      "Bash(sips -c 640 1280 /tmp/og-large.png --out /Users/hans1/vibe/public/og-image.png)",
+      "Bash('/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' --headless --disable-gpu --hide-scrollbars --force-device-scale-factor=1 --default-background-color=060C1AFF --window-size=1280,720 --screenshot=/tmp/og-large2.png file:///Users/hans1/vibe/public/og-image-source.svg)",
+      "Bash(sips -c 640 1280 /tmp/og-large2.png --out /Users/hans1/vibe/public/og-image.png)"
     ]
   }
 }

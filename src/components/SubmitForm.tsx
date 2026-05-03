@@ -270,6 +270,23 @@ export function SubmitForm({ onComplete }: SubmitFormProps) {
     }
     const inserted = { id: insertedId }
 
+    // Redeem the paid audit credit if the eligibility we checked at modal-
+    // open time landed on the paid_credit branch. Free-quota auditions skip
+    // this entirely (the RPC is a no-op anyway when paid_audits_credit is 0,
+    // but skipping saves a round-trip). Failure here is non-fatal — the
+    // audit itself still runs; credit just doesn't decrement and the next
+    // checkout will be blocked by the same gate, which is a recoverable
+    // state, not a lost audit.
+    if (user?.id && eligibility?.ok && eligibility.reason === 'paid_credit') {
+      const { error: redeemErr } = await supabase.rpc('redeem_audit_credit', {
+        p_member_id:  user.id,
+        p_project_id: insertedId,
+      })
+      if (redeemErr) {
+        console.warn('[submit] redeem_audit_credit failed', redeemErr.message)
+      }
+    }
+
     // Step 2 — Persist full brief (Phase 1 + Phase 2). Use upsert so a
     // claim flow doesn't collide with whatever brief the CLI/preview path
     // wrote earlier (and a fresh insert still works).
