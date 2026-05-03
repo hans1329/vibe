@@ -34,7 +34,12 @@ function json(body: unknown, status = 200) {
   })
 }
 
-const FREE_REGISTRATIONS_PER_MEMBER = 3
+// Default-paid policy · the actual free quota is read from
+// app_settings.free_audits_per_member at request time so admin promo
+// toggles take effect without a redeploy. This constant is the
+// emergency fallback if the settings RPC fails (transient DB error)
+// — pick something safe enough that the gate still works.
+const FREE_AUDITS_FALLBACK_DEFAULT = 3
 const AUDIT_FEE_CENTS = 9900   // $99.00 · matches src/lib/pricing.ts
 
 Deno.serve(async (req) => {
@@ -68,7 +73,9 @@ Deno.serve(async (req) => {
 
   // Eligibility re-check on the server. Client could be lying about
   // priorCount; the only trust line is auth.users + projects.creator_id.
-  const [{ count: priorCount }, { data: memberRow }] = await Promise.all([
+  // Free quota is read live from app_settings so admin can flip the promo
+  // without redeploying this function.
+  const [{ count: priorCount }, { data: memberRow }, { data: freeQuotaJson }] = await Promise.all([
     admin
       .from('projects')
       .select('id', { count: 'exact', head: true })
@@ -78,15 +85,25 @@ Deno.serve(async (req) => {
       .select('paid_audits_credit')
       .eq('id', userId)
       .maybeSingle(),
+    admin.rpc('get_app_setting', { p_key: 'free_audits_per_member' }),
   ])
 
-  const used = priorCount ?? 0
+  const used   = priorCount ?? 0
   const credit = memberRow?.paid_audits_credit ?? 0
+  // Defensive parse — RPC returns jsonb, supabase-js gives us either a
+  // number or null; coerce-and-clamp so a bad seed value doesn't paywall
+  // the fallback default.
+  const parsedQuota = typeof freeQuotaJson === 'number' ? freeQuotaJson
+                    : typeof freeQuotaJson === 'string' ? Number(freeQuotaJson)
+                    : NaN
+  const freeQuota = Number.isFinite(parsedQuota) && parsedQuota >= 0
+    ? Math.floor(parsedQuota)
+    : FREE_AUDITS_FALLBACK_DEFAULT
 
   // Don't sell a credit to someone who still has free or paid budget.
   // The UI shouldn't even surface the checkout button in that state, but
   // we double-check on the server.
-  if (used < FREE_REGISTRATIONS_PER_MEMBER) {
+  if (used < freeQuota) {
     return json({ error: 'Free audits still available · no payment needed' }, 400)
   }
   if (credit > 0) {

@@ -15,7 +15,6 @@ import type { ExtractedBrief } from '../lib/extractionPrompt'
 import { integrityScore } from '../lib/extractionPrompt'
 import {
   checkRegistrationEligibility,
-  FREE_REGISTRATIONS_PER_MEMBER,
   type RegistrationEligibility,
 } from '../lib/pricing'
 import { resolvePreviewClaim } from '../lib/projectQueries'
@@ -577,7 +576,7 @@ export function SubmitForm({ onComplete }: SubmitFormProps) {
           color: '#00D4AA',
           borderRadius: '2px',
         }}>
-          FREE AUDITION · {eligibility.remainingFree} of {FREE_REGISTRATIONS_PER_MEMBER} remaining
+          FREE AUDITION · {eligibility.remainingFree} of {eligibility.freeQuota} remaining
         </div>
       )}
 
@@ -786,12 +785,17 @@ function PaymentGate({ eligibility }: { eligibility: Extract<RegistrationEligibi
         // PAYMENT REQUIRED — ${priceDollars}
       </div>
       <h3 className="font-display font-bold text-2xl mb-3" style={{ color: 'var(--cream)' }}>
-        Free quota used.
+        {eligibility.freeQuota > 0 ? 'Free quota used' : 'Audition fee'}
       </h3>
       <p className="font-light mb-6" style={{ color: 'rgba(248,245,238,0.6)' }}>
-        You've already audited {eligibility.priorCount} products. The first {FREE_REGISTRATIONS_PER_MEMBER} per
-        member are free — your next audit needs the ${priceDollars} discovery · exposure · fandom fee
-        (conditional refund on graduation).
+        {eligibility.freeQuota > 0 ? (
+          <>You've already audited {eligibility.priorCount} products. The first {eligibility.freeQuota} per
+          member are free — your next audit needs the ${priceDollars} discovery · exposure · fandom fee
+          (conditional refund on graduation).</>
+        ) : (
+          <>Auditioning a project costs ${priceDollars} (discovery · exposure · fandom · conditional
+          refund on graduation). Pay once per audit · no subscription.</>
+        )}
       </p>
 
       <button

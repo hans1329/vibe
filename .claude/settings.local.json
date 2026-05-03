@@ -54,7 +54,30 @@
       "Bash('/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' --headless --disable-gpu --hide-scrollbars --force-device-scale-factor=1 --window-size=1280,720 --screenshot=/tmp/og-large.png file:///Users/hans1/vibe/public/og-image-source.svg)",
       "Bash(sips -c 640 1280 /tmp/og-large.png --out /Users/hans1/vibe/public/og-image.png)",
       "Bash('/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' --headless --disable-gpu --hide-scrollbars --force-device-scale-factor=1 --default-background-color=060C1AFF --window-size=1280,720 --screenshot=/tmp/og-large2.png file:///Users/hans1/vibe/public/og-image-source.svg)",
-      "Bash(sips -c 640 1280 /tmp/og-large2.png --out /Users/hans1/vibe/public/og-image.png)"
+      "Bash(sips -c 640 1280 /tmp/og-large2.png --out /Users/hans1/vibe/public/og-image.png)",
+      "Bash(\"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome\" --headless --disable-gpu --hide-scrollbars --force-device-scale-factor=1 --default-background-color=060C1AFF --window-size=1280,720 --screenshot=/tmp/og-large2.png \"file:///Users/hans1/vibe/public/og-image-source.svg\")",
+      "Bash(curl -sI \"https://commit.show/og-image.png?cb=$\\(date +%s\\)\")",
+      "Bash(curl -s \"https://commit.show/og-image.png?cb=$\\(date +%s\\)\" -o /tmp/live-og.png)",
+      "Bash(shasum /tmp/live-og.png /Users/hans1/vibe/public/og-image.png)",
+      "Bash(curl -s https://commit.show)",
+      "Bash(curl -s https://api.cloudflare.com/client/v4/pages/projects/commitshow/deployments)",
+      "Bash(curl -s \"https://commit.show?cb=$\\(date +%s\\)\")",
+      "Bash(curl -s \"https://commit.show/assets/index-C8ez0dWS.js\")",
+      "Bash(curl -s \"https://commit.show/?cb=$\\(date +%s\\)\")",
+      "Bash(curl -s \"https://commit.show/\" -o /dev/null -w \"etag=%header{etag}\\\\nage=%header{age}\\\\ncf-cache=%header{cf-cache-status}\\\\n\")",
+      "Bash(curl -sH 'Cache-Control: no-cache' \"https://commit.show/?nocache=$\\(date +%s%N\\)\" -o /tmp/cur.html)",
+      "Bash(curl -s \"https://commit.show/assets/$\\(grep -oE 'index-[^\"]+\\\\.js' /tmp/cur.html)",
+      "Bash(grep -oE \"\\(Pay \\\\\\\\\\\\$99|proceed to audit|PaymentResult|Confirming|Payment received|finalizing|webhook\\)\")",
+      "Bash(curl -s \"https://commit.show/assets/index-C8ez0dWS.js\" -o /tmp/live.js)",
+      "Bash(grep -oE \"\\(\\\\\\\\\\\\$99|99\\\\\\\\.00|Stripe|paid_audits|paid_credit|PaymentGate\\)\" /tmp/live.js)",
+      "Bash(curl -s \"https://commitshow.pages.dev/?cb=$\\(date +%s%N\\)\" -o /tmp/pages.html)",
+      "Bash(grep -oE \"\\(Payment received|finalizing|paymentPolling|Pay \\\\\\\\\\\\$99\\)\")",
+      "Bash(curl -s \"https://commit.show/assets/SubmitPage-FoHgVY5M.js\")",
+      "Bash(curl -s \"https://commit.show/?cb=$\\(date +%s%N\\)\" -o /tmp/cur.html)",
+      "Bash(curl -s \"https://commit.show/assets/index-Bex0kHYV.js\" -o /tmp/idx.js)",
+      "Bash(curl -s \"https://commit.show/assets/SubmitPage-Dgayrry0.js\")",
+      "Bash(deno check *)",
+      "Bash(supabase functions *)"
     ]
   }
 }

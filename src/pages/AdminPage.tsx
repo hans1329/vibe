@@ -110,7 +110,7 @@ export function AdminPage() {
 
   const [token, setToken] = useState<string>(() => localStorage.getItem(ADMIN_TOKEN_KEY) ?? '')
   const [tokenInput, setTokenInput] = useState('')
-  const [tab, setTab] = useState<'overview' | 'users' | 'audits' | 'cli' | 'tools'>('overview')
+  const [tab, setTab] = useState<'overview' | 'users' | 'audits' | 'cli' | 'policy' | 'tools'>('overview')
 
   const [userStats, setUserStats]   = useState<UserStats   | null>(null)
   const [auditStats, setAuditStats] = useState<AuditStats  | null>(null)
@@ -708,6 +708,7 @@ export function AdminPage() {
             ['users',    '사용자'],
             ['audits',   'Audit'],
             ['cli',      'CLI 사용'],
+            ['policy',   '정책'],
             ['tools',    '도구'],
           ] as const).map(([k, label]) => (
             <button
@@ -737,6 +738,7 @@ export function AdminPage() {
         {tab === 'users'    && <UsersTab stats={userStats} list={userList} currentUserId={user.id} onToggleAdmin={handleToggleAdmin} grantBusyId={grantBusyId} grantOut={grantOut} hasToken={!!token} />}
         {tab === 'audits'   && <AuditsTab stats={auditStats} recent={recent} onForceRefresh={(u) => handleForceRefresh(u, { perRow: true })} rowBusy={rowBusy} rowOut={rowOut} hasToken={!!token} />}
         {tab === 'cli'      && <CliTab usage={cliUsage} onForceRefresh={(u) => handleForceRefresh(u, { perRow: true })} rowBusy={rowBusy} rowOut={rowOut} hasToken={!!token} />}
+        {tab === 'policy'   && <PolicyTab />}
         {tab === 'tools'    && (
           <ToolsTab
             token={token}
@@ -1102,6 +1104,124 @@ function fmtRelative(iso: string): string {
   if (hr < 24)  return `${hr}h ago`
   const day = Math.floor(hr / 24)
   return `${day}d ago`
+}
+
+// ── PolicyTab ──────────────────────────────────────────────────────────────
+// 가격·무료할당량 등 admin 이 코드 deploy 없이 켜고 끌 수 있는 런타임 정책 토글.
+// app_settings 테이블에서 read · set_app_setting RPC (admin 가드) 로 write.
+// 변경 즉시 모든 클라이언트의 다음 eligibility check 부터 반영 (per-page-load
+// cache TTL 60s · 최악 60초 후엔 모두에게 반영).
+function PolicyTab() {
+  const [loaded, setLoaded] = useState(false)
+  const [busy,   setBusy]   = useState(false)
+  const [free,   setFree]   = useState<number>(3)
+  const [feeCents, setFeeCents] = useState<number>(9900) // read-only display for now
+  const [meta,   setMeta]   = useState<{ updated_at: string | null; updated_by: string | null }>({ updated_at: null, updated_by: null })
+  const [out,    setOut]    = useState<string | null>(null)
+
+  const load = async () => {
+    setOut(null)
+    const { data, error } = await supabase
+      .from('app_settings')
+      .select('key, value, updated_at, updated_by')
+      .in('key', ['free_audits_per_member'])
+    if (error) { setOut(`로드 실패: ${error.message}`); setLoaded(true); return }
+    const row = (data ?? []).find(r => r.key === 'free_audits_per_member')
+    const parsed = typeof row?.value === 'number' ? row.value
+                 : typeof row?.value === 'string' ? Number(row.value)
+                 : NaN
+    if (Number.isFinite(parsed) && parsed >= 0) setFree(Math.floor(parsed))
+    setMeta({ updated_at: row?.updated_at ?? null, updated_by: row?.updated_by ?? null })
+    setLoaded(true)
+  }
+  useEffect(() => { void load() }, [])
+
+  const save = async () => {
+    if (!Number.isFinite(free) || free < 0 || free > 100) {
+      setOut('0 ~ 100 사이의 정수만 입력하세요'); return
+    }
+    if (!confirm(`free_audits_per_member 를 ${free} 로 설정할까요?\n\n· 0 = 모든 신규 audit 이 $99 paid (default policy)\n· 3 = 런칭 프로모 (member 당 첫 3건 무료)\n\n이미 audit 한 사용자에는 영향 없음 · 새로운 4번째 시도부터 적용`)) return
+    setBusy(true)
+    setOut(null)
+    const { data, error } = await supabase.rpc('set_app_setting', {
+      p_key:   'free_audits_per_member',
+      p_value: free,
+    })
+    setBusy(false)
+    if (error) { setOut(`실패: ${error.message}`); return }
+    setOut(`저장됨 → free_audits_per_member = ${free}`)
+    if (Array.isArray(data) && data[0]) {
+      setMeta({ updated_at: data[0].updated_at, updated_by: data[0].updated_by })
+    } else if (data && typeof data === 'object') {
+      const r = data as { updated_at?: string; updated_by?: string }
+      setMeta({ updated_at: r.updated_at ?? null, updated_by: r.updated_by ?? null })
+    }
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Free quota card */}
+      <section className="p-5" style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '2px' }}>
+        <h3 className="font-display text-lg mb-1" style={{ color: 'var(--cream)' }}>회원당 무료 audit 횟수</h3>
+        <p className="text-xs mb-4" style={{ color: 'rgba(255,255,255,0.6)' }}>
+          기본 정책은 유료 (audit 1건당 $99). 이 값이 N &gt; 0 이면 회원당 첫 N 건이 무료, N+1 번째부터 결제 게이트가 뜸.
+          <br />0 으로 두면 가입과 동시에 모든 audit 이 paid.
+        </p>
+        <div className="flex items-end gap-3 mb-3">
+          <div>
+            <label className="block font-mono text-[11px] tracking-widest mb-1" style={{ color: 'rgba(255,255,255,0.5)' }}>FREE_AUDITS_PER_MEMBER</label>
+            <input
+              type="number"
+              min={0}
+              max={100}
+              step={1}
+              value={loaded ? free : ''}
+              onChange={e => setFree(Math.max(0, Math.min(100, parseInt(e.target.value || '0', 10))))}
+              disabled={!loaded || busy}
+              className="font-mono text-2xl px-3 py-2 w-32 text-center"
+              style={{ background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(240,192,64,0.4)', color: 'var(--gold-500)', borderRadius: '2px' }}
+            />
+          </div>
+          <div className="flex gap-2 mb-2">
+            {[0, 1, 3, 5, 10].map(n => (
+              <button
+                key={n}
+                onClick={() => setFree(n)}
+                disabled={!loaded || busy}
+                className="px-2 py-1 font-mono text-[11px]"
+                style={{ background: free === n ? 'rgba(240,192,64,0.18)' : 'rgba(255,255,255,0.04)', color: free === n ? 'var(--gold-500)' : 'rgba(255,255,255,0.7)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '2px', cursor: 'pointer' }}
+              >
+                {n}
+              </button>
+            ))}
+          </div>
+          <button
+            onClick={save}
+            disabled={!loaded || busy}
+            className="ml-auto px-4 py-2 font-mono text-xs tracking-widest"
+            style={{ background: busy ? 'rgba(240,192,64,0.4)' : 'var(--gold-500)', color: 'var(--navy-900)', border: 'none', borderRadius: '2px', cursor: busy ? 'wait' : 'pointer' }}
+          >
+            {busy ? '저장 중…' : '저장'}
+          </button>
+        </div>
+        <div className="font-mono text-[11px] space-y-0.5" style={{ color: 'rgba(255,255,255,0.45)' }}>
+          {meta.updated_at && <div>last updated: {new Date(meta.updated_at).toLocaleString('ko-KR')} · by {meta.updated_by ? meta.updated_by.slice(0,8) : '—'}</div>}
+          {out && <div style={{ color: out.startsWith('실패') || out.startsWith('로드 실패') || out.startsWith('0 ~ 100') ? 'var(--scarlet)' : 'var(--gold-500)' }}>{out}</div>}
+          <div>변경 즉시 모든 client 의 다음 eligibility check 부터 반영 (페이지당 60초 cache).</div>
+        </div>
+      </section>
+
+      {/* Pricing card · read-only display */}
+      <section className="p-5" style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '2px' }}>
+        <h3 className="font-display text-lg mb-1" style={{ color: 'var(--cream)' }}>Audit 가격</h3>
+        <p className="text-xs mb-4" style={{ color: 'rgba(255,255,255,0.6)' }}>
+          audit_fee_cents — Stripe Checkout 의 단가. 현재는 Edge Function (create-checkout-session) 의 코드 상수에서 읽어옴 ·
+          향후 admin 토글이 필요해지면 같은 app_settings 테이블에 키 추가.
+        </p>
+        <div className="font-mono text-2xl" style={{ color: 'rgba(255,255,255,0.7)' }}>${(feeCents / 100).toFixed(0)}</div>
+      </section>
+    </div>
+  )
 }
 
 function ToolsTab({
