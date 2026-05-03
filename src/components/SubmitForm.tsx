@@ -316,32 +316,7 @@ export function SubmitForm({ onComplete }: SubmitFormProps) {
 
   // ── PAYMENT GATE (permanent policy: first 3 free per member, 4th+ = $99) ──
   if (eligibility && !eligibility.ok) {
-    const priceDollars = (eligibility.priceCents / 100).toFixed(0)
-    return (
-      <div className="max-w-xl mx-auto text-center card-navy p-10" style={{ borderRadius: '2px' }}>
-        <div className="font-mono text-xs tracking-widest mb-3" style={{ color: 'var(--gold-500)' }}>
-          // PAYMENT REQUIRED — ${priceDollars}
-        </div>
-        <h3 className="font-display font-bold text-2xl mb-3" style={{ color: 'var(--cream)' }}>
-          Free quota used.
-        </h3>
-        <p className="font-light mb-2" style={{ color: 'rgba(248,245,238,0.6)' }}>
-          You've already audited {eligibility.priorCount} products. The first {FREE_REGISTRATIONS_PER_MEMBER} per
-          member are free — your next audit needs the $${priceDollars} discovery · exposure · fandom fee
-          (conditional refund on graduation).
-        </p>
-        <div className="mt-6 mb-4 px-4 py-3 font-mono text-xs tracking-wide" style={{
-          background: 'rgba(240,192,64,0.06)', border: '1px solid rgba(240,192,64,0.2)',
-          color: 'var(--gold-500)', borderRadius: '2px',
-        }}>
-          STRIPE CHECKOUT · COMING SOON
-        </div>
-        <p className="font-mono text-xs" style={{ color: 'rgba(248,245,238,0.4)' }}>
-          Payment integration is the final piece of V0.5. Until Stripe is live, additional audits
-          are paused for accounts past the free quota.
-        </p>
-      </div>
-    )
+    return <PaymentGate eligibility={eligibility} />
   }
 
   // ── STEP LABELS ──
@@ -587,6 +562,92 @@ export function SubmitForm({ onComplete }: SubmitFormProps) {
         @keyframes spin { to { transform: rotate(360deg); } }
         @keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
       `}</style>
+    </div>
+  )
+}
+
+// ── PaymentGate ────────────────────────────────────────────────────────────
+// Shown when checkRegistrationEligibility returns ok=false (free quota gone +
+// no paid credit). Calls the create-checkout-session Edge Function and
+// redirects to the Stripe Checkout URL.
+function PaymentGate({ eligibility }: { eligibility: Extract<RegistrationEligibility, { ok: false }> }) {
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const priceDollars = (eligibility.priceCents / 100).toFixed(0)
+
+  const handleCheckout = async () => {
+    setBusy(true)
+    setError(null)
+    try {
+      const { data: sessionRes } = await supabase.auth.getSession()
+      const token = sessionRes.session?.access_token
+      if (!token) throw new Error('Sign in expired · refresh and try again')
+
+      const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/create-checkout-session`, {
+        method: 'POST',
+        headers: {
+          'Content-Type':  'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ kind: 'audit_fee' }),
+      })
+      const body = await res.json()
+      if (!res.ok || !body.url) {
+        throw new Error(body.error || `Checkout failed (${res.status})`)
+      }
+      // Hand off to Stripe — full-page redirect, the user comes back via
+      // success_url / cancel_url after Stripe finishes.
+      window.location.assign(body.url)
+    } catch (e) {
+      setBusy(false)
+      setError((e as Error).message || 'Checkout failed')
+    }
+  }
+
+  return (
+    <div className="max-w-xl mx-auto text-center card-navy p-10" style={{ borderRadius: '2px' }}>
+      <div className="font-mono text-xs tracking-widest mb-3" style={{ color: 'var(--gold-500)' }}>
+        // PAYMENT REQUIRED — ${priceDollars}
+      </div>
+      <h3 className="font-display font-bold text-2xl mb-3" style={{ color: 'var(--cream)' }}>
+        Free quota used.
+      </h3>
+      <p className="font-light mb-6" style={{ color: 'rgba(248,245,238,0.6)' }}>
+        You've already audited {eligibility.priorCount} products. The first {FREE_REGISTRATIONS_PER_MEMBER} per
+        member are free — your next audit needs the ${priceDollars} discovery · exposure · fandom fee
+        (conditional refund on graduation).
+      </p>
+
+      <button
+        onClick={handleCheckout}
+        disabled={busy}
+        className="w-full py-3.5 font-mono text-sm tracking-wide transition-all"
+        style={{
+          background:   busy ? 'rgba(240,192,64,0.4)' : 'var(--gold-500)',
+          color:        'var(--navy-900)',
+          border:       'none',
+          borderRadius: '2px',
+          cursor:       busy ? 'wait' : 'pointer',
+        }}
+      >
+        {busy ? 'Opening Stripe Checkout…' : `Pay $${priceDollars} · proceed to audit →`}
+      </button>
+
+      {error && (
+        <div className="mt-3 px-3 py-2 font-mono text-[11px]" style={{
+          background: 'rgba(200,16,46,0.08)',
+          border: '1px solid rgba(200,16,46,0.25)',
+          color: '#F87171',
+          borderRadius: '2px',
+        }}>
+          {error}
+        </div>
+      )}
+
+      <p className="mt-4 font-mono text-[11px]" style={{ color: 'var(--text-muted)' }}>
+        Card · Apple Pay · Google Pay · processed by Stripe.
+      </p>
     </div>
   )
 }
