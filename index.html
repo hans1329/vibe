@@ -7,8 +7,14 @@
     <meta name="description" content="The vibe coding league. Audited by the engine, auditioned for Scouts. Run npx commitshow@latest audit on any GitHub repo." />
     <link rel="canonical" href="https://commit.show/" />
 
-    <!-- Icons & PWA -->
+    <!-- Icons & PWA · Google search results pick the largest 48×n PNG, so
+         we surface 48 / 96 / 192 / 512 explicitly. SVG kept for tab-bar
+         vector rendering on browsers that prefer it. -->
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/png" sizes="48x48"   href="/favicon-48.png" />
+    <link rel="icon" type="image/png" sizes="96x96"   href="/favicon-96.png" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/favicon-192.png" />
+    <link rel="icon" type="image/png" sizes="512x512" href="/favicon-512.png" />
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/manifest.json" />
     <meta name="theme-color" content="#060C1A" />
