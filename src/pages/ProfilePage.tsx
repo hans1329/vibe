@@ -8,6 +8,7 @@ import { deleteProject } from '../lib/projectQueries'
 import { loadEffectiveStack } from '../lib/memberStack'
 import { IconGraduation, IconWand } from '../components/icons'
 import { VerifiedIdentities } from '../components/VerifiedIdentities'
+import { ShareUserTemplateButton } from '../components/ShareUserTemplateButton'
 
 const TIER_COLOR: Record<ScoutTier, string> = {
   Bronze: '#B98B4E', Silver: '#D1D5DB', Gold: '#F0C040', Platinum: '#A78BFA',
@@ -23,6 +24,13 @@ export function ProfilePage() {
   const { user, member, updateMember } = useAuth()
   const [stats, setStats] = useState<MemberStats | null>(null)
   const [applications, setApplications] = useState<Project[]>([])
+  // Most recent correct Forecast where the linked project graduated · drives
+  // the "Share Early Spotter hit" button. null when no correct vote yet,
+  // or when the vote target hasn't graduated. Computed once on mount.
+  const [earlyHit, setEarlyHit] = useState<{
+    project_name: string; project_id: string; grade: string;
+    days_before:  number; hit_count: number;
+  } | null>(null)
   const [library, setLibrary] = useState<Array<MDLibraryItem & { projects_applied: number; projects_graduated: number }>>([])
   const [loading, setLoading] = useState(true)
 
@@ -62,6 +70,42 @@ export function ProfilePage() {
         setLibrary([])
       }
       setLoading(false)
+
+      // Early Spotter hit · most recent correct Forecast where the
+      // linked project actually graduated. Best-effort; failure or no
+      // hit just leaves the share button hidden.
+      const { data: vote } = await supabase
+        .from('votes')
+        .select('created_at, project_id')
+        .eq('member_id', user.id)
+        .eq('is_correct', true)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      if (vote?.project_id) {
+        const { data: proj } = await supabase
+          .from('projects')
+          .select('id, project_name, graduation_grade, graduated_at')
+          .eq('id', vote.project_id)
+          .maybeSingle()
+        if (proj?.graduation_grade && proj?.graduated_at) {
+          const days = Math.max(1, Math.floor(
+            (new Date(proj.graduated_at).getTime() - new Date(vote.created_at).getTime()) / 86_400_000
+          ))
+          const { count } = await supabase
+            .from('votes')
+            .select('id', { count: 'exact', head: true })
+            .eq('member_id', user.id)
+            .eq('is_correct', true)
+          setEarlyHit({
+            project_name: proj.project_name ?? 'a project',
+            project_id:   proj.id,
+            grade:        proj.graduation_grade,
+            days_before:  days,
+            hit_count:    count ?? 1,
+          })
+        }
+      }
     })()
   }, [user?.id])
 
@@ -211,6 +255,33 @@ export function ProfilePage() {
                   color="var(--cream)"
                   hint="Your Scout tier determines how many Forecasts you can cast each month."
                 />
+                {/* Early Spotter share · only when the most recent correct
+                    Forecast points at a graduated project. Slot fills:
+                    project_name + grade + days_before + scout tier +
+                    cumulative correct count. Hidden when no hit yet. */}
+                {earlyHit && (
+                  <div style={{ marginTop: 12, padding: 12, background: 'rgba(240,192,64,0.06)', border: '1px solid rgba(240,192,64,0.25)', borderRadius: '3px' }}>
+                    <div className="font-mono text-[10px] mb-1" style={{ color: 'var(--gold-500)', letterSpacing: 2 }}>EARLY SPOTTER · HIT #{earlyHit.hit_count}</div>
+                    <div className="text-xs mb-2" style={{ color: 'rgba(248,245,238,0.85)' }}>
+                      Called <strong>{earlyHit.project_name}</strong> · graduated <strong>{earlyHit.grade}</strong> · {earlyHit.days_before} days early.
+                    </div>
+                    <ShareUserTemplateButton
+                      templateId="early_spotter"
+                      slots={{
+                        scout_handle:   member?.x_handle || member?.display_name || 'me',
+                        project_name:   earlyHit.project_name,
+                        days_before:    earlyHit.days_before,
+                        grade:          earlyHit.grade,
+                        scout_tier:     tier,
+                        hit_count:      earlyHit.hit_count,
+                        scout_id:       user.id,
+                      }}
+                      url={`https://commit.show/projects/${earlyHit.project_id}`}
+                      variant="gold"
+                      label="Share Early Spotter"
+                    />
+                  </div>
+                )}
               </div>
             </div>
           </div>

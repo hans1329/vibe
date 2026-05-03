@@ -66,6 +66,10 @@ export function ProjectDetailPage() {
   // shows the new score even if `project` is mid-refresh.
   const [shareJump, setShareJump] = useState<{ score: number; delta: number; takeaway: string | null } | null>(null)
   const [streakClimbs, setStreakClimbs] = useState(0)
+  // Most recent ladder_milestones row for this project · drives the
+  // 'Share milestone' user_share button. null when project hasn't hit
+  // any milestone yet (common for new audits).
+  const [latestMilestone, setLatestMilestone] = useState<{ label: string; category: string | null } | null>(null)
   const [notFound, setNotFound] = useState(false)
   const [seasonPhase, setSeasonPhase] = useState<SeasonPhase | undefined>(undefined)
   const [seasonProgress, setSeasonProgress] = useState<SeasonProgress | null>(null)
@@ -161,6 +165,30 @@ export function ProjectDetailPage() {
       if (proj.creator_id) {
         fetchAuditionStreak(proj.creator_id).then(s => setStreakClimbs(s.climbs)).catch(() => {})
       }
+      // Latest milestone for the share button · best-effort, fail silent.
+      // Only the highest-prestige milestone hits typically warrant a share.
+      void supabase
+        .from('ladder_milestones')
+        .select('milestone_type, category, achieved_at')
+        .eq('project_id', proj.id)
+        .order('achieved_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+        .then(({ data }) => {
+          if (!data) { setLatestMilestone(null); return }
+          const labels: Record<string, string> = {
+            first_top_100:              'first top 100',
+            first_top_10:               'first top 10',
+            first_number_one:           'first #1',
+            streak_100_days:            '100-day top-50 streak',
+            climb_100_steps_in_30_days: '100-step climb in 30 days',
+            all_categories_top_50:      'top 50 in every category',
+          }
+          setLatestMilestone({
+            label:    labels[data.milestone_type] ?? data.milestone_type,
+            category: data.category,
+          })
+        })
       setLoading(false)
     })()
   }, [id])
@@ -461,11 +489,13 @@ export function ProjectDetailPage() {
                     GITHUB ↗
                   </a>
                 )}
-                {/* Owner one-click share · pulls audit_complete user_share
-                    template from cmo_templates, fills score / band /
-                    concern / strength / owner / project slots, opens X
-                    intent URL with the project page as the unfurl
-                    target (its og:image becomes the X card). */}
+                {/* Owner one-click shares · pull user_share templates from
+                    cmo_templates and open X intent URL. Three flavors
+                    layer based on project state — most-meaningful event
+                    wins:
+                      graduated  → "Share my graduation"
+                      milestone  → "Share my milestone" (latest one)
+                      always     → "Share my audit"   (audit_complete) */}
                 {isOwner && (() => {
                   const score = project.score_total ?? 0
                   const band  = score >= 80 ? 'strong' : score >= 60 ? 'mid' : 'early'
@@ -476,22 +506,59 @@ export function ProjectDetailPage() {
                   const strengths   = snapshotResult?.rich?.scout_brief?.strengths  ?? []
                   const firstConcernBullet  = weaknesses.length > 0 ? weaknesses[0]?.bullet ?? '' : ''
                   const firstStrengthBullet = strengths.length  > 0 ? strengths[0]?.bullet  ?? '' : ''
+                  const projectUrl = `https://commit.show/projects/${project.id}`
                   return (
-                    <ShareUserTemplateButton
-                      templateId="audit_complete"
-                      slots={{
-                        score,
-                        band,
-                        owner,
-                        project_name:    repoName,
-                        project_id:      project.id,
-                        top_concern_1:   firstConcernBullet,
-                        top_strength_1:  firstStrengthBullet,
-                      }}
-                      url={`https://commit.show/projects/${project.id}`}
-                      variant="ghost"
-                      label="Share on X"
-                    />
+                    <>
+                      {/* Graduation share · only when project has graduated. */}
+                      {project.graduation_grade && (
+                        <ShareUserTemplateButton
+                          templateId="graduation"
+                          slots={{
+                            project_name:    project.project_name ?? repoName,
+                            grade:           project.graduation_grade,
+                            score,
+                            rank:            '',                  // TODO · season_standings join
+                            total_in_season: '',                  // TODO
+                            project_id:      project.id,
+                          }}
+                          url={projectUrl}
+                          variant="gold"
+                          label="Share graduation"
+                        />
+                      )}
+                      {/* Milestone share · most recent ladder_milestones row. */}
+                      {latestMilestone && (
+                        <ShareUserTemplateButton
+                          templateId="milestone"
+                          slots={{
+                            project_name:    project.project_name ?? repoName,
+                            milestone_label: latestMilestone.label,
+                            rank:            project.audit_count ?? '',
+                            category:        latestMilestone.category ?? project.business_category ?? '',
+                            project_id:      project.id,
+                          }}
+                          url={projectUrl}
+                          variant="ghost"
+                          label="Share milestone"
+                        />
+                      )}
+                      {/* Audit share · always available for owners. */}
+                      <ShareUserTemplateButton
+                        templateId="audit_complete"
+                        slots={{
+                          score,
+                          band,
+                          owner,
+                          project_name:    repoName,
+                          project_id:      project.id,
+                          top_concern_1:   firstConcernBullet,
+                          top_strength_1:  firstStrengthBullet,
+                        }}
+                        url={projectUrl}
+                        variant="ghost"
+                        label="Share on X"
+                      />
+                    </>
                   )
                 })()}
                 {/* Forecast + Applaud — §4 emoji CTA carve-out for differentiation
