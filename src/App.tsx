@@ -22,6 +22,7 @@ const PrivacyPage             = lazy(() => import('./pages/PrivacyPage').then(m 
 const BackstagePage           = lazy(() => import('./pages/BackstagePage').then(m => ({ default: m.BackstagePage })))
 const AuditPage               = lazy(() => import('./pages/AuditPage').then(m => ({ default: m.AuditPage })))
 const AdminPage               = lazy(() => import('./pages/AdminPage').then(m => ({ default: m.AdminPage })))
+const CmoPreviewPage          = lazy(() => import('./pages/CmoPreviewPage').then(m => ({ default: m.CmoPreviewPage })))
 const BuildLogsPage           = lazy(() => import('./pages/BuildLogsPage').then(m => ({ default: m.BuildLogsPage })))
 const StacksPage              = lazy(() => import('./pages/StacksPage').then(m => ({ default: m.StacksPage })))
 const AsksPage                = lazy(() => import('./pages/AsksPage').then(m => ({ default: m.AsksPage })))
@@ -68,6 +69,7 @@ export default function App() {
           <Route path="/backstage"        element={<BackstagePage />} />
           <Route path="/audit"            element={<AuditPage />} />
           <Route path="/admin"            element={<AdminPage />} />
+          <Route path="/admin/cmo"        element={<CmoPreviewPage />} />
 
           {/* Creator Community (§13-B) */}
           <Route path="/community"                     element={<Navigate to="/community/build-logs" replace />} />

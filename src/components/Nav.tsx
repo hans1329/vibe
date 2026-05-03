@@ -246,6 +246,16 @@ export function Nav() {
                       to two items removes redundancy + makes Sign out a
                       one-tap target. */}
                   <DropdownLink to="/me" onSelect={() => setMenuOpen(false)} icon={<IconGear />}>My profile</DropdownLink>
+                  {/* Admin-only entry points · members.is_admin gate. /admin
+                      is the operational dashboard; /admin/cmo is the
+                      marketing post-studio preview surface. Both hidden
+                      from non-admin members so the dropdown stays minimal. */}
+                  {member?.is_admin && (
+                    <>
+                      <DropdownLink to="/admin"     onSelect={() => setMenuOpen(false)} icon={<IconAdmin />}>Admin</DropdownLink>
+                      <DropdownLink to="/admin/cmo" onSelect={() => setMenuOpen(false)} icon={<IconMegaphone />}>CMO post studio</DropdownLink>
+                    </>
+                  )}
                   {/* Sign out · right-aligned to set it apart from the
                       My profile (left-aligned settings) row · the menu reads
                       as "settings on the left, escape on the right". */}
@@ -406,6 +416,28 @@ export function Nav() {
                   <IconGear size={14} />
                   MY PROFILE
                 </NavLink>
+                {member?.is_admin && (
+                  <>
+                    <NavLink
+                      to="/admin"
+                      onClick={() => setMobileOpen(false)}
+                      className="py-3 font-mono text-xs tracking-widest inline-flex items-center gap-2"
+                      style={{ color: 'var(--cream)', textDecoration: 'none', borderBottom: '1px solid rgba(255,255,255,0.06)' }}
+                    >
+                      <IconAdmin size={14} />
+                      ADMIN
+                    </NavLink>
+                    <NavLink
+                      to="/admin/cmo"
+                      onClick={() => setMobileOpen(false)}
+                      className="py-3 font-mono text-xs tracking-widest inline-flex items-center gap-2"
+                      style={{ color: 'var(--cream)', textDecoration: 'none', borderBottom: '1px solid rgba(255,255,255,0.06)' }}
+                    >
+                      <IconMegaphone size={14} />
+                      CMO POST STUDIO
+                    </NavLink>
+                  </>
+                )}
                 <button
                   onClick={() => { signOut(); setMobileOpen(false) }}
                   className="mt-3 w-full py-3 font-mono text-xs tracking-widest text-right"
@@ -448,6 +480,26 @@ function IconGear({ size = 13 }: { size?: number }) {
     <svg viewBox="0 0 24 24" width={size} height={size} fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <circle cx="12" cy="12" r="3" />
       <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+    </svg>
+  )
+}
+
+// Admin · shield outline. Used for /admin route entry in dropdown.
+function IconAdmin({ size = 13 }: { size?: number }) {
+  return (
+    <svg viewBox="0 0 24 24" width={size} height={size} fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+    </svg>
+  )
+}
+
+// Megaphone · marketing / announcements. Used for /admin/cmo entry.
+function IconMegaphone({ size = 13 }: { size?: number }) {
+  return (
+    <svg viewBox="0 0 24 24" width={size} height={size} fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M3 11v2a1 1 0 0 0 1 1h3l5 4V6L7 10H4a1 1 0 0 0-1 1z" />
+      <path d="M16 8a4 4 0 0 1 0 8" />
+      <path d="M19 5a8 8 0 0 1 0 14" />
     </svg>
   )
 }
