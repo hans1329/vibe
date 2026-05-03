@@ -107,7 +107,7 @@ interface GitHubInfo {
   contributors_count: number           // ecosystem signal · approx (capped at 100)
   // Form factor — determines weight emphasis (apps weight Lighthouse, libraries
   // weight ecosystem + tests, scaffolds weight reproducibility).
-  form_factor: 'app' | 'library' | 'scaffold' | 'native_app' | 'unknown'
+  form_factor: 'app' | 'library' | 'scaffold' | 'native_app' | 'skill' | 'unknown'
   // npm registry signals · libraries only (null elsewhere)
   npm: {
     package_name:        string | null   // resolved from package.json `name`
@@ -184,6 +184,12 @@ interface GitHubInfo {
       total:   number
     }
     has_privacy_manifest:  boolean       // iOS PrivacyInfo.xcprivacy (App Store 2024 gate)
+    // ── Skill-form signals (form_factor='skill') ──
+    has_skill_md:            boolean     // SKILL.md at root or .claude/skills/<name>/SKILL.md
+    has_skill_canonical:     boolean     // canonical .claude/skills/<name>/SKILL.md layout
+    has_plugin_manifest:     boolean     // .claude-plugin/marketplace.json or plugin.json
+    skill_frontmatter_valid: boolean     // SKILL.md has both `name` and `description` YAML fields
+    skill_description_chars: number      // length of `description` field — useful trigger detail
     // ── Vibe Coder Checklist · 7-category framework (2026-04-28) ──
     // The systematic failure modes that ~70% of AI-coded projects miss
     // and generic linters / Cursor reviews don't catch. Surfaced as
@@ -257,7 +263,7 @@ function detectFormFactor(
   pkg: Record<string, unknown> | null,
   paths: string[],
   readme: string | null,
-): 'app' | 'library' | 'scaffold' | 'native_app' | 'unknown' {
+): 'app' | 'library' | 'scaffold' | 'native_app' | 'skill' | 'unknown' {
   const pathSet = new Set(paths)
   const readmeHead = (readme ?? '').toLowerCase().slice(0, 3000)
   const name = typeof pkg?.name === 'string' ? (pkg.name as string) : ''
@@ -309,6 +315,24 @@ function detectFormFactor(
   )
   if (nativeJsFrameworks || platformPaths || flutterPath || nativeBuildConfig) {
     return 'native_app'
+  }
+
+  // Claude Code skill indicators (high priority — comes before scaffold and
+  // library because a skill repo can have a package.json or look library-ish
+  // and we don't want it misclassified). Distribution path for skills is
+  // `npx skills add owner/repo` or `/plugin marketplace add` — NOT npm
+  // publish — so penalizing them on npm signals is wrong.
+  // Signals (any one is enough):
+  //   1. SKILL.md at root (single-skill repo)
+  //   2. .claude/skills/<name>/SKILL.md (canonical multi-skill layout)
+  //   3. .claude-plugin/marketplace.json or plugin.json (declares as plugin)
+  //   4. README install pattern matching `npx skills add` or `/plugin marketplace add`
+  const hasRootSkillMd     = pathSet.has('SKILL.md')
+  const hasCanonicalSkill  = paths.some(p => /^\.claude\/skills\/[^/]+\/SKILL\.md$/.test(p))
+  const hasPluginManifest  = paths.some(p => /^\.claude-plugin\/(marketplace|plugin)\.json$/.test(p))
+  const readmeMentionsInstall = /\bnpx\s+(?:-y\s+)?skills(?:@[\w.-]+)?\s+add\b|\/plugin\s+marketplace\s+add\b/i.test(readmeHead)
+  if (hasRootSkillMd || hasCanonicalSkill || hasPluginManifest || readmeMentionsInstall) {
+    return 'skill'
   }
 
   // Scaffold indicators (highest priority — they often look like libraries)
@@ -418,6 +442,11 @@ async function inspectGitHub(url: string): Promise<GitHubInfo> {
       },
       native_secrets_in_bundle: { samples: [], total: 0 },
       has_privacy_manifest: false,
+      has_skill_md: false,
+      has_skill_canonical: false,
+      has_plugin_manifest: false,
+      skill_frontmatter_valid: false,
+      skill_description_chars: 0,
       vibe_concerns: {
         webhook_idempotency: { handlers_seen: 0, idempotency_signal_seen: 0, gap: false, sample_files: [] },
         rls_gaps:            { tables: 0, policies: 0, writable_table_signals: 0, gap_estimate: 0, has_rls_intent: false },
@@ -649,6 +678,39 @@ async function inspectGitHub(url: string): Promise<GitHubInfo> {
   const has_contributing     = paths.some(p => /^CONTRIBUTING\.md$/i.test(p))
   const has_changelog        = paths.some(p => /^CHANGELOG\.md$/i.test(p))
   const has_code_of_conduct  = paths.some(p => /^CODE_OF_CONDUCT\.md$/i.test(p))
+
+  // Skill-form signals · used by form_factor='skill' branch in slot math.
+  // Detection mirrors detectFormFactor() — kept in sync but evaluated again
+  // here so the booleans land in `signals` for both Claude evidence and
+  // deterministic scoring.
+  const has_skill_canonical = paths.some(p => /^\.claude\/skills\/[^/]+\/SKILL\.md$/.test(p))
+  const has_skill_md        = pathSet.has('SKILL.md') || has_skill_canonical
+  const has_plugin_manifest = paths.some(p => /^\.claude-plugin\/(marketplace|plugin)\.json$/.test(p))
+  // Frontmatter validity: read the canonical or root SKILL.md (whichever we
+  // find first) and check for both `name` and `description` YAML fields.
+  // description length is surfaced as a separate signal — short descriptions
+  // (<100 chars) tend to mean weak triggering, which Claude can flag.
+  let skill_frontmatter_valid = false
+  let skill_description_chars = 0
+  if (has_skill_md) {
+    const skillPath = paths.find(p => /^\.claude\/skills\/[^/]+\/SKILL\.md$/.test(p)) ?? (pathSet.has('SKILL.md') ? 'SKILL.md' : null)
+    if (skillPath) {
+      const skillText = await ghText(`/contents/${skillPath}?ref=${defBranch}`)
+      if (skillText) {
+        const fmMatch = skillText.match(/^---\s*\n([\s\S]+?)\n---/)
+        if (fmMatch) {
+          const fm = fmMatch[1]
+          const nameLine = fm.match(/^\s*name\s*:\s*(.+)$/m)
+          const descLine = fm.match(/^\s*description\s*:\s*(.+)$/m)
+          skill_frontmatter_valid = !!(nameLine && descLine)
+          if (descLine) {
+            // Strip surrounding quotes if present (YAML allows both forms).
+            skill_description_chars = descLine[1].replace(/^["']|["']$/g, '').trim().length
+          }
+        }
+      }
+    }
+  }
 
   // Monorepo signal — workspaces declared OR turbo/pnpm workspace files OR
   // packages/* presence with a /package.json under it.
@@ -1617,6 +1679,11 @@ async function inspectGitHub(url: string): Promise<GitHubInfo> {
         total:   native_secret_samples.length,
       },
       has_privacy_manifest,
+      has_skill_md,
+      has_skill_canonical,
+      has_plugin_manifest,
+      skill_frontmatter_valid,
+      skill_description_chars,
       vibe_concerns,
     },
     readme_excerpt,
@@ -2660,6 +2727,16 @@ OUTPUT RULES
        · 'library'   — tests / TS strict / docs / npm reach are first-class; Lighthouse perf
                        on a docs site is secondary (don't dwell on perf 56 if a11y 100)
        · 'scaffold'  — reproducibility (env templates, clear setup, demos) is first-class
+       · 'skill'     — Claude Code / agentic skill repo. SKILL.md frontmatter quality,
+                       trigger description detail, plugin manifest presence (.claude-plugin/),
+                       and 'When NOT to invoke' / companion-skills sections are first-class.
+                       DO NOT fault for missing npm package / 0 releases / no lockfile —
+                       skills distribute via 'npx skills add' or '/plugin marketplace add',
+                       not npm publish. DO NOT fault for missing tests on the skill repo
+                       itself (tests on the consuming code matter, not the skill author's).
+                       If the SKILL.md exists with valid name + description frontmatter and
+                       at least one of (canonical .claude/skills/ layout · .claude-plugin/
+                       manifest · README install command), the skill IS shippable.
        · 'unknown'   — reason from context; default to 'app' framing
      Calibration anchor: a polished 3-month-old greenfield app with no tests /
      no CI / no observability should NOT outscore a 100K-star library shipping
@@ -3342,6 +3419,7 @@ Deno.serve(async (req) => {
   // slots so we score on what's verifiable in the repo. form_factor stays
   // available to Claude as evidence in the prompt.
   const isAppForm    = gh.form_factor === 'app' || gh.form_factor === 'unknown'
+  const isSkillForm  = gh.form_factor === 'skill'
   // Native-app sub-form (mobile / desktop binary) gets its own slot
   // semantics. Web checks (Lighthouse / live URL probe) don't apply —
   // the runtime is the user's device, not a server. We score on
@@ -3439,17 +3517,60 @@ Deno.serve(async (req) => {
     (gh.signals.has_privacy_policy        ? 1 : 0) +
     (gh.signals.has_permissions_manifest  ? 1 : 0)
 
+  // ── Skill-form equivalent slots (form_factor='skill') ──
+  // Distribution path is `npx skills add owner/repo` or `/plugin marketplace
+  // add` — NOT npm publish. Library substitution penalizes skills for
+  // missing npm package · 0 releases · no lockfile · no tests, all of which
+  // are irrelevant to a skill's actual quality. Skill quality = SKILL.md
+  // depth + frontmatter discipline + plugin manifest + canonical layout.
+  //
+  // Slots (parallel cap structure to lib · 20+5+2 = 27 base):
+  //   skillLhEquivPts   0-20  · SKILL.md presence + frontmatter + canonical
+  //                             layout + README quality + LICENSE
+  //   skillLiveEquivPts 0-5   · plugin manifest OR README install command
+  //   skillComplEquiv   0-2   · changelog + contributing
+  // SKILL.md exists                          → 6  (it has to exist or the skill literally can't be used)
+  // canonical .claude/skills/<name>/ layout  → 2  (single root SKILL.md is OK but multi-skill layout is convention)
+  // frontmatter has both name + description  → 4
+  // description ≥ 150 chars (good triggering)→ 4  (Anthropic's claude-api skill is ~1000 chars · we're not that strict)
+  // README has install + usage sections      → 2  (1 each)
+  // LICENSE present                          → 2
+  const skillLhEquivPts =
+    (gh.signals.has_skill_md            ? 6 : 0) +
+    (gh.signals.has_skill_canonical     ? 2 : 0) +
+    (gh.signals.skill_frontmatter_valid ? 4 : 0) +
+    (gh.signals.skill_description_chars >= 150 ? 4 : gh.signals.skill_description_chars >= 50 ? 2 : 0) +
+    (gh.signals.has_readme_install ? 1 : 0) +
+    (gh.signals.has_readme_usage   ? 1 : 0) +
+    (gh.signals.has_license        ? 2 : 0)
+  // Distribution: plugin manifest is the strongest signal · README install
+  // command is weaker but still indicates the author thought about how
+  // users get the skill.
+  const skillLiveEquivPts =
+    (gh.signals.has_plugin_manifest ? 3 : 0) +
+    // README install command (npx skills add / /plugin marketplace add)
+    (/\bnpx\s+(?:-y\s+)?skills(?:@[\w.-]+)?\s+add\b|\/plugin\s+marketplace\s+add\b/i.test(gh.readme_excerpt ?? '') ? 2 : 0)
+  // Completeness: light · just changelog + contributing.
+  const skillComplEquivPts =
+    (gh.signals.has_changelog    ? 1 : 0) +
+    (gh.signals.has_contributing ? 1 : 0)
+
   // Pick the right slot values based on form factor.
   // - useWebSlots (web app / SaaS) · Lighthouse · live URL probe · web meta
   // - native_app · lib-style code-quality slot + distribution + permissions
+  // - skill · SKILL.md depth + plugin manifest + frontmatter discipline
   // - library / cli / scaffold · lib-style across the board
-  const lhPts          = useWebSlots ? lhScore.total : libLhEquivPts             //  0-20
-  const healthPts      = useWebSlots ? liveHealthPts
-                       : isNativeApp ? distributionPts
-                       : libLiveEquiv                                            //  0-5
-  const completenessPts = useWebSlots ? completenessRawPts
-                        : isNativeApp ? nativeComplPts
-                        : libComplEquiv                                          //  0-2
+  const lhPts          = useWebSlots   ? lhScore.total
+                       : isSkillForm   ? skillLhEquivPts
+                       :                 libLhEquivPts                            //  0-20
+  const healthPts      = useWebSlots   ? liveHealthPts
+                       : isNativeApp   ? distributionPts
+                       : isSkillForm   ? skillLiveEquivPts
+                       :                 libLiveEquiv                             //  0-5
+  const completenessPts = useWebSlots  ? completenessRawPts
+                        : isNativeApp  ? nativeComplPts
+                        : isSkillForm  ? skillComplEquivPts
+                        :                libComplEquiv                            //  0-2
   // Walk-on Brief substitute · 0-3 pts when no Brief is submitted (CLI
   // track) but README is rich AND the live URL is healthy. Lifts the
   // walk-on ceiling from /47 toward /50 for projects that ship real
