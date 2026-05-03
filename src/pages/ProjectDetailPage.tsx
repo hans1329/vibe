@@ -31,6 +31,7 @@ import { OwnerBriefPanel } from '../components/OwnerBriefPanel'
 import { BackstagePanel } from '../components/BackstagePanel'
 import { ProjectComments } from '../components/ProjectComments'
 import { ShareToXModal } from '../components/ShareToXModal'
+import { ShareUserTemplateButton } from '../components/ShareUserTemplateButton'
 import { GraduationStanding } from '../components/GraduationStanding'
 import { BadgeSnippet } from '../components/BadgeSnippet'
 import { useAuth } from '../lib/auth'
@@ -460,6 +461,39 @@ export function ProjectDetailPage() {
                     GITHUB ↗
                   </a>
                 )}
+                {/* Owner one-click share · pulls audit_complete user_share
+                    template from cmo_templates, fills score / band /
+                    concern / strength / owner / project slots, opens X
+                    intent URL with the project page as the unfurl
+                    target (its og:image becomes the X card). */}
+                {isOwner && (() => {
+                  const score = project.score_total ?? 0
+                  const band  = score >= 80 ? 'strong' : score >= 60 ? 'mid' : 'early'
+                  const ghMatch = (project.github_url ?? '').match(/github\.com\/([^/]+)\/([^/?#]+)/i)
+                  const owner       = ghMatch?.[1] ?? 'owner'
+                  const repoName    = ghMatch?.[2]?.replace(/\.git$/, '') ?? project.project_name ?? 'repo'
+                  const weaknesses  = snapshotResult?.rich?.scout_brief?.weaknesses ?? []
+                  const strengths   = snapshotResult?.rich?.scout_brief?.strengths  ?? []
+                  const firstConcernBullet  = weaknesses.length > 0 ? weaknesses[0]?.bullet ?? '' : ''
+                  const firstStrengthBullet = strengths.length  > 0 ? strengths[0]?.bullet  ?? '' : ''
+                  return (
+                    <ShareUserTemplateButton
+                      templateId="audit_complete"
+                      slots={{
+                        score,
+                        band,
+                        owner,
+                        project_name:    repoName,
+                        project_id:      project.id,
+                        top_concern_1:   firstConcernBullet,
+                        top_strength_1:  firstStrengthBullet,
+                      }}
+                      url={`https://commit.show/projects/${project.id}`}
+                      variant="ghost"
+                      label="Share on X"
+                    />
+                  )
+                })()}
                 {/* Forecast + Applaud — §4 emoji CTA carve-out for differentiation
                     from OPEN LIVE / GITHUB pills. Non-owner, phase-aware. */}
                 {canForecast && isVotingPhase && (
