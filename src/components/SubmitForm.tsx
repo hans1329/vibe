@@ -19,6 +19,7 @@ import {
   type RegistrationEligibility,
 } from '../lib/pricing'
 import { resolvePreviewClaim } from '../lib/projectQueries'
+import { PaymentResultModal } from './PaymentResultModal'
 
 type Step = 1 | 2 | 3 | 4
 
@@ -71,10 +72,48 @@ export function SubmitForm({ onComplete }: SubmitFormProps) {
   const [error, setError] = useState('')
   const [eligibility, setEligibility] = useState<RegistrationEligibility | null>(null)
 
+  // Stripe checkout return · ?payment=success / ?payment=canceled. We
+  // capture the value once on mount, surface the celebrate-or-acknowledge
+  // modal, and strip the query string so a refresh doesn't re-fire.
+  const [paymentResult, setPaymentResult] = useState<'success' | 'canceled' | null>(() => {
+    const v = searchParams.get('payment')
+    return v === 'success' || v === 'canceled' ? v : null
+  })
+
+  useEffect(() => {
+    if (!paymentResult) return
+    // Drop the query params from the URL so a hard refresh doesn't relaunch
+    // the modal. Using replaceState (not navigate) keeps history clean.
+    const url = new URL(window.location.href)
+    url.searchParams.delete('payment')
+    url.searchParams.delete('session_id')
+    window.history.replaceState({}, '', url.toString())
+  }, [paymentResult])
+
   useEffect(() => {
     if (!user?.id) { setEligibility(null); return }
     checkRegistrationEligibility(user.id).then(setEligibility)
-  }, [user?.id])
+  }, [user?.id, paymentResult])
+
+  // After a successful payment, the webhook is asynchronous · re-poll
+  // eligibility briefly so the new paid_audits_credit propagates. 4 polls
+  // at 1.5s = 6s window, which covers Stripe's typical webhook latency.
+  useEffect(() => {
+    if (paymentResult !== 'success' || !user?.id) return
+    let cancelled = false
+    let attempts = 0
+    const tick = async () => {
+      if (cancelled || attempts >= 4) return
+      attempts++
+      const res = await checkRegistrationEligibility(user.id)
+      if (cancelled) return
+      setEligibility(res)
+      if ((res.paidCredit ?? 0) > 0) return // webhook landed · stop polling
+      setTimeout(tick, 1500)
+    }
+    tick()
+    return () => { cancelled = true }
+  }, [paymentResult, user?.id])
 
   // Scroll to top whenever the step changes. Deferred to the next paint so
   // the new step's DOM has committed first; instant behavior because smooth
@@ -562,6 +601,13 @@ export function SubmitForm({ onComplete }: SubmitFormProps) {
         @keyframes spin { to { transform: rotate(360deg); } }
         @keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
       `}</style>
+
+      <PaymentResultModal
+        open={paymentResult !== null}
+        variant={paymentResult ?? 'success'}
+        paidCredit={eligibility && 'paidCredit' in eligibility ? eligibility.paidCredit : null}
+        onClose={() => setPaymentResult(null)}
+      />
     </div>
   )
 }
