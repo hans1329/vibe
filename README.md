@@ -24,23 +24,36 @@
 
     your-build                          owner/your-build
 
-                         ╔══════════════╗
-                         ║   82 / 100   ║
-                         ╚══════════════╝
+  ┌──────────────────────────────────────────────────────────┐
+  │ What this build missed                                   │
+  │ ↓ No API rate limiting on /auth endpoint                 │
+  │ ↓ Accessibility 72 · buttons missing aria-labels         │
+  │                                                          │
+  │ What it got right                                        │
+  │ ↑ Tests cover the auth path · CI green for 30 days       │
+  │ ↑ Full-stack evidence · 6 tech layers                    │
+  │ ↑ Brief integrity 9/10 · all 6 sections answered         │
+  └──────────────────────────────────────────────────────────┘
+
+                  ╔═══════════════════════════╗
+                  ║                           ║
+                  ║     █████╗   ██████╗      ║
+                  ║    ██╔══██╗ ╚════██╗      ║
+                  ║    ╚█████╔╝  █████╔╝      ║
+                  ║    ██╔══██╗ ██╔═══╝       ║
+                  ║    ╚█████╔╝ ███████╗      ║
+                  ║     ╚════╝  ╚══════╝      ║
+                  ║                           ║
+                  ║   82 / 100 · strong       ║
+                  ╚═══════════════════════════╝
 
       Audit  42/50  ▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▱▱
       Scout  26/30  ▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▱▱▱▱
       Comm.  14/20  ▰▰▰▰▰▰▰▰▰▰▰▰▰▰▱▱▱▱▱▱
 
-    ↑ Tests cover the auth path · CI green for 30 days
-    ↑ Full-stack evidence · 6 tech layers
-    ↑ Brief integrity 9/10 · all 6 sections answered
-    ↓ Accessibility 72 · buttons missing aria-labels
-    ↓ No API rate limiting on /auth endpoint
-
       Ranked    #3 of 47   Season Zero
       Tier      Honors     (top 5%)
-                                                       commit.show
+                                              commit.show
 ```
 
 ```bash
