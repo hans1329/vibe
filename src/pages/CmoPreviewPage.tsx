@@ -1,14 +1,17 @@
-// CMO Preview · 5 trigger types rendered with realistic sample data so
-// CEO/M can review brand consistency BEFORE building the full Post Studio
-// (cmo_posts table · auto-generation · approval queue · API integration).
+// CMO Post Studio · admin-only marketing surface.
+// Three sections, top to bottom:
+//   1. Freeform tweet generator · prompt textarea → Claude → 3 variations
+//   2. 5 trigger templates · DB-backed editable tweet copy + share-card SVG preview
+//   3. Recent drafts · last 10 cmo_drafts rows for revisit
 //
-// Each card mocks the X share-card image (1200×630) + the tweet copy that
-// would auto-fill from the underlying DB event. No real DB read · pure
-// preview surface. Internal admin-gated.
+// The 5 share-card SVGs are still hardcoded React components (visual templates)
+// while the editable surface is the *tweet copy* per trigger, persisted in
+// cmo_templates. SVG slot editing is a follow-up.
 
-import { useEffect } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../lib/auth'
+import { supabase } from '../lib/supabase'
 
 // ── Shared card chrome ─────────────────────────────────────────────────────
 const cardWidth = 1200
@@ -29,81 +32,57 @@ function CardFrame({ children }: { children: React.ReactNode }) {
       </defs>
       <rect width={cardWidth} height={cardHeight} fill="url(#bg)" />
       {children}
-      {/* Wordmark · top-left */}
       <text x={64} y={68} fontFamily="'Playfair Display', Georgia, serif" fontWeight={900} fontSize={32} fill="#F0C040">commit<tspan fill="#F8F5EE" fontWeight={400}>.show</tspan></text>
       <text x={64} y={92} fontFamily="'DM Mono', 'SF Mono', monospace" fontSize={12} fill="rgba(248,245,238,0.55)" letterSpacing="2">VIBE-CODING LEAGUE</text>
     </svg>
   )
 }
 
-// ── 1. Audit complete ──────────────────────────────────────────────────────
 function AuditCompleteCard() {
   return (
     <CardFrame>
       <text x={cardWidth - 64} y={68} textAnchor="end" fontFamily="'DM Mono', 'SF Mono', monospace" fontSize={20} fill="rgba(248,245,238,0.65)">maa-website</text>
       <text x={cardWidth - 64} y={92} textAnchor="end" fontFamily="'DM Mono', 'SF Mono', monospace" fontSize={12} fill="rgba(248,245,238,0.4)">audit complete</text>
-
       <text x={cardWidth / 2} y={210} textAnchor="middle" fontFamily="'Playfair Display', Georgia, serif" fontWeight={900} fontSize={150} fill="url(#goldShimmer)" letterSpacing="-1">82</text>
       <text x={cardWidth / 2} y={250} textAnchor="middle" fontFamily="'DM Mono', 'SF Mono', monospace" fontSize={18} fill="rgba(248,245,238,0.6)" letterSpacing="3">/ 100 · STRONG</text>
-
       <text x={64} y={340} fontFamily="'DM Mono', 'SF Mono', monospace" fontSize={16} fill="rgba(248,245,238,0.45)" letterSpacing="2">WHAT THIS BUILD MISSED</text>
       <text x={64} y={372} fontFamily="'DM Sans', sans-serif" fontSize={20} fill="#F8F5EE">↓ no API rate limiting on /auth — IP cap missing</text>
       <text x={64} y={400} fontFamily="'DM Sans', sans-serif" fontSize={20} fill="#F8F5EE">↓ Lighthouse a11y 72 · buttons missing aria-labels</text>
-
       <text x={64} y={450} fontFamily="'DM Mono', 'SF Mono', monospace" fontSize={16} fill="rgba(248,245,238,0.45)" letterSpacing="2">WHAT IT GOT RIGHT</text>
       <text x={64} y={482} fontFamily="'DM Sans', sans-serif" fontSize={20} fill="#F8F5EE">↑ 50 RLS policies · every state-changing table covered</text>
-
       <rect x={64} y={528} width={cardWidth - 128} height={56} rx={3} fill="rgba(0,0,0,0.4)" stroke="rgba(240,192,64,0.4)" strokeWidth={1} />
       <text x={cardWidth / 2} y={563} textAnchor="middle" fontFamily="'DM Mono', 'SF Mono', monospace" fontSize={20} fill="#F0C040">npx commitshow audit github.com/owner/maa-website</text>
     </CardFrame>
   )
 }
 
-// ── 2. Graduation ──────────────────────────────────────────────────────────
 function GraduationCard() {
   return (
     <CardFrame>
       <text x={cardWidth - 64} y={68} textAnchor="end" fontFamily="'DM Mono', 'SF Mono', monospace" fontSize={14} fill="rgba(248,245,238,0.4)" letterSpacing="2">SEASON ZERO · SPRING 2026</text>
-
-      {/* Big VALEDICTORIAN word */}
       <text x={cardWidth / 2} y={250} textAnchor="middle" fontFamily="'Playfair Display', Georgia, serif" fontStyle="italic" fontWeight={700} fontSize={88} fill="url(#goldShimmer)">Valedictorian</text>
-
-      {/* Project name */}
       <text x={cardWidth / 2} y={330} textAnchor="middle" fontFamily="'Playfair Display', Georgia, serif" fontWeight={900} fontSize={56} fill="#F8F5EE">cal-clone</text>
-
-      {/* Creator */}
       <text x={cardWidth / 2} y={370} textAnchor="middle" fontFamily="'DM Sans', sans-serif" fontSize={22} fill="rgba(248,245,238,0.65)">by @minji_dev</text>
-
-      {/* Score line · pixel digits inline */}
       <text x={cardWidth / 2} y={460} textAnchor="middle" fontFamily="'DM Mono', 'SF Mono', monospace" fontSize={18} fill="rgba(248,245,238,0.5)" letterSpacing="3">FINAL SCORE</text>
       <text x={cardWidth / 2} y={520} textAnchor="middle" fontFamily="'Playfair Display', Georgia, serif" fontWeight={900} fontSize={88} fill="url(#goldShimmer)">94</text>
-
       <text x={cardWidth / 2} y={580} textAnchor="middle" fontFamily="'Playfair Display', Georgia, serif" fontStyle="italic" fontSize={20} fill="rgba(248,245,238,0.6)">Every commit, on stage.</text>
     </CardFrame>
   )
 }
 
-// ── 3. Milestone ───────────────────────────────────────────────────────────
 function MilestoneCard() {
   return (
     <CardFrame>
       <text x={cardWidth - 64} y={68} textAnchor="end" fontFamily="'DM Mono', 'SF Mono', monospace" fontSize={14} fill="rgba(248,245,238,0.4)" letterSpacing="2">MILESTONE · 100-DAY STREAK</text>
-
-      {/* Big "100" days */}
       <text x={cardWidth / 2} y={310} textAnchor="middle" fontFamily="'Playfair Display', Georgia, serif" fontWeight={900} fontSize={220} fill="url(#goldShimmer)" letterSpacing="-2">100</text>
       <text x={cardWidth / 2} y={360} textAnchor="middle" fontFamily="'DM Mono', 'SF Mono', monospace" fontSize={22} fill="rgba(248,245,238,0.7)" letterSpacing="6">DAYS IN TOP 50</text>
-
-      {/* Project */}
       <text x={cardWidth / 2} y={460} textAnchor="middle" fontFamily="'Playfair Display', Georgia, serif" fontWeight={900} fontSize={48} fill="#F8F5EE">stripe-supabase-recipe</text>
       <text x={cardWidth / 2} y={500} textAnchor="middle" fontFamily="'DM Sans', sans-serif" fontSize={20} fill="rgba(248,245,238,0.55)">SaaS · ranked #4 in category</text>
-
-      {/* Footer line */}
       <text x={cardWidth / 2} y={580} textAnchor="middle" fontFamily="'DM Mono', 'SF Mono', monospace" fontSize={16} fill="#F0C040" letterSpacing="2">commit.show/projects/[id]</text>
     </CardFrame>
   )
 }
 
-// ── 4. Weekly Top Picks ────────────────────────────────────────────────────
 function WeeklyPicksCard() {
   const movers = [
     { rank: 1, name: 'cal-clone',          delta: '+12', score: 88 },
@@ -113,10 +92,8 @@ function WeeklyPicksCard() {
   return (
     <CardFrame>
       <text x={cardWidth - 64} y={68} textAnchor="end" fontFamily="'DM Mono', 'SF Mono', monospace" fontSize={14} fill="rgba(248,245,238,0.4)" letterSpacing="2">WEEK 18 · 2026-05-04</text>
-
       <text x={cardWidth / 2} y={170} textAnchor="middle" fontFamily="'Playfair Display', Georgia, serif" fontStyle="italic" fontWeight={700} fontSize={56} fill="url(#goldShimmer)">This Week in commit.show</text>
       <text x={cardWidth / 2} y={210} textAnchor="middle" fontFamily="'DM Mono', 'SF Mono', monospace" fontSize={18} fill="rgba(248,245,238,0.55)" letterSpacing="3">TOP 3 CLIMBERS</text>
-
       {movers.map((m, i) => {
         const y = 310 + i * 80
         return (
@@ -127,126 +104,70 @@ function WeeklyPicksCard() {
           </g>
         )
       })}
-
       <text x={cardWidth / 2} y={580} textAnchor="middle" fontFamily="'Playfair Display', Georgia, serif" fontStyle="italic" fontSize={20} fill="rgba(248,245,238,0.55)">Every commit, on stage.</text>
     </CardFrame>
   )
 }
 
-// ── 5. Early Spotter (Scout Forecast hit) ──────────────────────────────────
 function EarlySpotterCard() {
   return (
     <CardFrame>
       <text x={cardWidth - 64} y={68} textAnchor="end" fontFamily="'DM Mono', 'SF Mono', monospace" fontSize={14} fill="rgba(248,245,238,0.4)" letterSpacing="2">SCOUT EARLY SPOTTER · HIT #7</text>
-
       <text x={cardWidth / 2} y={200} textAnchor="middle" fontFamily="'Playfair Display', Georgia, serif" fontStyle="italic" fontWeight={700} fontSize={66} fill="url(#goldShimmer)">Early Spotter</text>
-
-      {/* Scout name */}
       <text x={cardWidth / 2} y={290} textAnchor="middle" fontFamily="'DM Mono', 'SF Mono', monospace" fontSize={16} fill="rgba(248,245,238,0.5)" letterSpacing="2">SPOTTED BY</text>
       <text x={cardWidth / 2} y={340} textAnchor="middle" fontFamily="'Playfair Display', Georgia, serif" fontWeight={900} fontSize={42} fill="#F8F5EE">@gold_scout_07</text>
       <text x={cardWidth / 2} y={368} textAnchor="middle" fontFamily="'DM Mono', 'SF Mono', monospace" fontSize={14} fill="#F0C040" letterSpacing="3">GOLD SCOUT</text>
-
       <line x1={cardWidth / 2 - 60} y1={398} x2={cardWidth / 2 + 60} y2={398} stroke="rgba(240,192,64,0.35)" strokeWidth={1} />
-
       <text x={cardWidth / 2} y={440} textAnchor="middle" fontFamily="'DM Mono', 'SF Mono', monospace" fontSize={16} fill="rgba(248,245,238,0.5)" letterSpacing="2">SPOTTED 14 DAYS BEFORE GRADUATION</text>
       <text x={cardWidth / 2} y={490} textAnchor="middle" fontFamily="'Playfair Display', Georgia, serif" fontWeight={900} fontSize={36} fill="#F8F5EE">cal-clone · Honors</text>
       <text x={cardWidth / 2} y={524} textAnchor="middle" fontFamily="'DM Sans', sans-serif" fontSize={20} fill="rgba(248,245,238,0.55)">final score 88/100</text>
-
       <text x={cardWidth / 2} y={585} textAnchor="middle" fontFamily="'DM Mono', 'SF Mono', monospace" fontSize={14} fill="#F0C040" letterSpacing="2">commit.show/scouts/[id]</text>
     </CardFrame>
   )
 }
 
-// ── Page layout ────────────────────────────────────────────────────────────
-
-type TriggerCard = {
-  id:           string
-  label:        string
-  fires_when:   string
-  data_source:  string
-  Image:        () => React.ReactElement
-  copy:         string
+const TEMPLATE_IMAGES: Record<string, () => React.ReactElement> = {
+  audit_complete: AuditCompleteCard,
+  graduation:     GraduationCard,
+  milestone:      MilestoneCard,
+  weekly_picks:   WeeklyPicksCard,
+  early_spotter:  EarlySpotterCard,
 }
 
-const triggers: TriggerCard[] = [
-  {
-    id: 'audit_complete',
-    label: '1. Audit complete',
-    fires_when: 'analysis_snapshots row inserted (initial · resubmit · weekly)',
-    data_source: 'project.project_name · score.total / band · concerns[0..1] · strengths[0]',
-    Image: AuditCompleteCard,
-    copy: `audited maa-website ↓
+type TemplateRow = {
+  id:            string
+  label:         string
+  copy_template: string
+  fires_when:    string
+  data_source:   string
+  updated_at:    string
+}
 
-↓ no API rate limiting on /auth — IP cap missing
-↓ lighthouse a11y 72, buttons missing aria-labels
+type DraftRow = {
+  id:             string
+  prompt:         string
+  variations:     Array<{ copy: string; hashtags?: string[]; pillar?: string; rationale?: string }>
+  selected_index: number | null
+  status:         'draft' | 'approved' | 'posted' | 'archived'
+  notes:          string | null
+  created_at:     string
+}
 
-↑ 50 RLS policies, every state-changing table covered
-
-82/100 · band: strong
-
-npx commitshow audit github.com/owner/maa-website`,
-  },
-  {
-    id: 'graduation',
-    label: '2. Graduation',
-    fires_when: 'project.graduation_grade flips to Valedictorian / Honors / Graduate',
-    data_source: 'project.project_name · creator.x_handle · graduation_grade · season_id · final score',
-    Image: GraduationCard,
-    copy: `cal-clone graduated Valedictorian · Season Zero.
-
-shipped by @minji_dev — final score 94/100, spring 2026 cohort.
-
-every commit, on stage.
-
-commit.show/projects/[id]`,
-  },
-  {
-    id: 'milestone',
-    label: '3. Milestone',
-    fires_when: 'ladder_milestones row inserted (first_top_10 · streak_100_days · climb_100_steps · etc.)',
-    data_source: 'milestone_type · project.project_name · category · current rank',
-    Image: MilestoneCard,
-    copy: `stripe-supabase-recipe just hit 100 days in the top 50.
-
-ranked #4 in SaaS · auditioning live in Season Zero.
-
-100-day streak isn't an algorithm trick — it's the same repo holding shape across iterations.
-
-commit.show/projects/[id]`,
-  },
-  {
-    id: 'weekly_picks',
-    label: '4. Weekly Top Picks',
-    fires_when: 'cron · every Monday 9 AM PT (Peak A slot)',
-    data_source: 'top 3 score_total_delta over the past 7 days',
-    Image: WeeklyPicksCard,
-    copy: `this week in commit.show ↑
-
-#1 cal-clone · +12 pts · 88/100
-#2 rag-quickstart · +9 pts · 81/100
-#3 agentic-toolbench · +7 pts · 79/100
-
-every commit, on stage · commit.show/ladder`,
-  },
-  {
-    id: 'early_spotter',
-    label: '5. Early Spotter (Scout hit)',
-    fires_when: 'graduation event · scout had a correct Forecast > 7 days before',
-    data_source: 'scout.x_handle · scout.tier · project.project_name · days_before_graduation · final score',
-    Image: EarlySpotterCard,
-    copy: `@gold_scout_07 spotted cal-clone 14 days before it graduated Honors.
-
-Gold Scout · early spotter hit #7 this season.
-
-scouts who call it early get a permanent badge — that's the whole point of the tier.
-
-commit.show/scouts/[id]`,
-  },
-]
-
+// ── Page ───────────────────────────────────────────────────────────────────
 export function CmoPreviewPage() {
   const { user, member, loading } = useAuth()
   const navigate = useNavigate()
+
+  const [templates,    setTemplates]    = useState<TemplateRow[]>([])
+  const [drafts,       setDrafts]       = useState<DraftRow[]>([])
+  const [loadErr,      setLoadErr]      = useState<string | null>(null)
+
+  // Freeform generator state
+  const [prompt,       setPrompt]       = useState('')
+  const [genBusy,      setGenBusy]      = useState(false)
+  const [genErr,       setGenErr]       = useState<string | null>(null)
+  const [variations,   setVariations]   = useState<DraftRow['variations']>([])
+  const [activeDraftId, setActiveDraftId] = useState<string | null>(null)
 
   useEffect(() => {
     if (loading) return
@@ -254,65 +175,288 @@ export function CmoPreviewPage() {
     if (!member?.is_admin) { navigate('/'); return }
   }, [user, member, loading, navigate])
 
-  if (loading || !user || !member?.is_admin) {
-    return null
+  const loadAll = useCallback(async () => {
+    setLoadErr(null)
+    const [tplRes, draftRes] = await Promise.all([
+      supabase.from('cmo_templates').select('*').order('id'),
+      supabase.from('cmo_drafts').select('*').order('created_at', { ascending: false }).limit(10),
+    ])
+    if (tplRes.error)   { setLoadErr(`templates: ${tplRes.error.message}`);   return }
+    if (draftRes.error) { setLoadErr(`drafts: ${draftRes.error.message}`);    return }
+    setTemplates(tplRes.data as TemplateRow[])
+    setDrafts(draftRes.data as DraftRow[])
+  }, [])
+
+  useEffect(() => { if (member?.is_admin) void loadAll() }, [member?.is_admin, loadAll])
+
+  const generate = async () => {
+    if (!prompt.trim()) return
+    setGenBusy(true)
+    setGenErr(null)
+    setVariations([])
+    setActiveDraftId(null)
+    try {
+      const { data: sessionRes } = await supabase.auth.getSession()
+      const token = sessionRes.session?.access_token
+      if (!token) throw new Error('Sign-in expired · refresh and try again')
+      const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/generate-tweet-copy`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type':  'application/json',
+        },
+        body: JSON.stringify({ prompt: prompt.trim() }),
+      })
+      const j = await res.json()
+      if (!res.ok) throw new Error(j?.error ?? `HTTP ${res.status}`)
+      setVariations(j.variations ?? [])
+      setActiveDraftId(j.draft_id ?? null)
+      await loadAll()
+    } catch (e) {
+      setGenErr((e as Error)?.message ?? String(e))
+    } finally {
+      setGenBusy(false)
+    }
   }
+
+  if (loading || !user || !member?.is_admin) return null
 
   return (
     <div className="relative z-10 pt-20 pb-16 px-4 md:px-6 lg:px-8 min-h-screen" style={{ background: 'var(--navy-950)', color: 'var(--cream)' }}>
       <div style={{ maxWidth: '1100px', margin: '0 auto' }}>
         <header style={{ marginBottom: 32 }}>
-          <div className="font-mono text-xs tracking-widest mb-2" style={{ color: 'var(--gold-500)' }}>// CMO POST STUDIO · PREVIEW MODE</div>
-          <h1 className="font-display text-3xl mb-1" style={{ color: 'var(--cream)' }}>5 trigger types · what each post will look like</h1>
+          <div className="font-mono text-xs tracking-widest mb-2" style={{ color: 'var(--gold-500)' }}>// CMO POST STUDIO</div>
+          <h1 className="font-display text-3xl mb-1" style={{ color: 'var(--cream)' }}>Tweet drafts · 5 trigger templates · recent history</h1>
           <p className="text-sm" style={{ color: 'rgba(255,255,255,0.55)' }}>
-            Mock preview only · no DB read · approval queue + auto-generation lands in Phase 2 (CMO.md §6).
-            Each card mirrors the share-card image (1200×630) + the tweet copy that auto-fills from the underlying event.
+            Freeform: ask M for a tweet (launch announce · feature drop · vibe-coding react). Templates: 5 share-card formats with editable copy. All saves to <code>cmo_templates</code> / <code>cmo_drafts</code>. Voice rules locked in CMO.md.
           </p>
         </header>
 
-        <div style={{ display: 'grid', gap: 36 }}>
-          {triggers.map(t => (
-            <section key={t.id} style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '4px', padding: 24 }}>
-              <div style={{ marginBottom: 16 }}>
-                <h2 className="font-display text-xl mb-1" style={{ color: 'var(--gold-500)' }}>{t.label}</h2>
-                <div className="font-mono text-[11px] mb-1" style={{ color: 'rgba(255,255,255,0.55)' }}>
-                  fires when: <span style={{ color: 'rgba(255,255,255,0.8)' }}>{t.fires_when}</span>
-                </div>
-                <div className="font-mono text-[11px]" style={{ color: 'rgba(255,255,255,0.55)' }}>
-                  data: <span style={{ color: 'rgba(255,255,255,0.8)' }}>{t.data_source}</span>
-                </div>
-              </div>
+        {loadErr && (
+          <div className="mb-4 p-3 font-mono text-xs" style={{ background: 'rgba(200,16,46,0.1)', border: '1px solid rgba(200,16,46,0.3)', color: 'var(--scarlet)' }}>
+            {loadErr}
+          </div>
+        )}
 
-              <div style={{ display: 'grid', gridTemplateColumns: '3fr 2fr', gap: 24, alignItems: 'start' }}>
-                <div>
-                  <div className="font-mono text-[10px] mb-2" style={{ color: 'rgba(255,255,255,0.4)', letterSpacing: 2 }}>SHARE CARD · 1200×630</div>
-                  <t.Image />
+        {/* ── 1. Freeform tweet generator ────────────────────────────────── */}
+        <section style={{ marginBottom: 48, background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(240,192,64,0.18)', borderRadius: '4px', padding: 24 }}>
+          <h2 className="font-display text-xl mb-1" style={{ color: 'var(--gold-500)' }}>Freeform · ask M for a tweet</h2>
+          <p className="text-xs mb-4" style={{ color: 'rgba(255,255,255,0.55)' }}>
+            Examples: "launch tweet for commit.show" · "react to Cursor 1.0 release" · "celebrate first audit milestone (100 audits)" · "tease the upcoming season-end". M follows CMO.md voice rules.
+          </p>
+          <textarea
+            value={prompt}
+            onChange={e => setPrompt(e.target.value)}
+            disabled={genBusy}
+            placeholder="we're launching today · platform tweet"
+            rows={3}
+            style={{
+              width: '100%', padding: 12, background: 'rgba(0,0,0,0.4)',
+              border: '1px solid rgba(240,192,64,0.3)', borderRadius: '3px',
+              color: 'var(--cream)', fontFamily: "'DM Mono', monospace", fontSize: 14,
+              resize: 'vertical', marginBottom: 12,
+            }}
+          />
+          <div className="flex items-center gap-3">
+            <button
+              onClick={generate}
+              disabled={genBusy || !prompt.trim()}
+              className="px-5 py-2 font-mono text-xs tracking-widest"
+              style={{
+                background: genBusy ? 'rgba(240,192,64,0.4)' : 'var(--gold-500)',
+                color: 'var(--navy-900)', border: 'none', borderRadius: '2px',
+                cursor: genBusy ? 'wait' : 'pointer',
+              }}
+            >
+              {genBusy ? 'M IS DRAFTING…' : 'GENERATE 3 VARIATIONS'}
+            </button>
+            {genErr && <span className="font-mono text-xs" style={{ color: 'var(--scarlet)' }}>{genErr}</span>}
+          </div>
+
+          {variations.length > 0 && (
+            <div style={{ marginTop: 24, display: 'grid', gap: 16 }}>
+              {variations.map((v, i) => (
+                <VariationCard key={i} v={v} index={i} draftId={activeDraftId} onChange={() => loadAll()} />
+              ))}
+            </div>
+          )}
+        </section>
+
+        {/* ── 2. 5 trigger templates ─────────────────────────────────────── */}
+        <section>
+          <h2 className="font-display text-xl mb-3" style={{ color: 'var(--gold-500)' }}>Trigger templates · 5 share-card formats</h2>
+          <p className="text-xs mb-6" style={{ color: 'rgba(255,255,255,0.55)' }}>
+            Each fires automatically (Phase 2) on a specific DB event. Edit the tweet copy and Save to update the live template. Slot placeholders like <code>{'{project_name}'}</code> are filled in at post time.
+          </p>
+          <div style={{ display: 'grid', gap: 36 }}>
+            {templates.map(t => (
+              <TemplateCard key={t.id} template={t} onSave={() => loadAll()} />
+            ))}
+            {templates.length === 0 && !loadErr && (
+              <div className="font-mono text-xs" style={{ color: 'rgba(255,255,255,0.4)' }}>loading templates…</div>
+            )}
+          </div>
+        </section>
+
+        {/* ── 3. Recent drafts ───────────────────────────────────────────── */}
+        <section style={{ marginTop: 48 }}>
+          <h2 className="font-display text-xl mb-3" style={{ color: 'var(--gold-500)' }}>Recent drafts · last 10</h2>
+          {drafts.length === 0 ? (
+            <div className="font-mono text-xs" style={{ color: 'rgba(255,255,255,0.4)' }}>no drafts yet · generate one above</div>
+          ) : (
+            <div style={{ display: 'grid', gap: 12 }}>
+              {drafts.map(d => (
+                <div key={d.id} style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '3px', padding: 14 }}>
+                  <div className="flex items-start justify-between mb-2 gap-3">
+                    <div className="font-mono text-[11px] flex-1" style={{ color: 'rgba(255,255,255,0.55)' }}>
+                      <span style={{ color: 'var(--gold-500)' }}>{d.status}</span> · {new Date(d.created_at).toLocaleString('ko-KR')} · {d.variations.length} variations
+                    </div>
+                  </div>
+                  <div className="text-xs mb-2" style={{ color: 'rgba(255,255,255,0.7)' }}>
+                    <span style={{ color: 'var(--text-muted)' }}>prompt:</span> {d.prompt}
+                  </div>
+                  {d.selected_index !== null && d.variations[d.selected_index] && (
+                    <pre className="font-mono text-[12px]" style={{ background: 'rgba(0,0,0,0.4)', padding: 10, borderRadius: 2, whiteSpace: 'pre-wrap', color: 'var(--cream)', margin: 0 }}>
+                      {d.variations[d.selected_index].copy}
+                    </pre>
+                  )}
                 </div>
-                <div>
-                  <div className="font-mono text-[10px] mb-2" style={{ color: 'rgba(255,255,255,0.4)', letterSpacing: 2 }}>TWEET COPY · {t.copy.length} CHARS</div>
-                  <pre style={{
-                    background: 'rgba(0,0,0,0.4)',
-                    border: '1px solid rgba(240,192,64,0.18)',
-                    borderRadius: '3px',
-                    padding: 16,
-                    fontFamily: "'DM Mono', 'SF Mono', monospace",
-                    fontSize: 13,
-                    lineHeight: 1.55,
-                    color: 'var(--cream)',
-                    whiteSpace: 'pre-wrap',
-                    wordBreak: 'break-word',
-                    margin: 0,
-                  }}>{t.copy}</pre>
-                </div>
-              </div>
-            </section>
-          ))}
-        </div>
+              ))}
+            </div>
+          )}
+        </section>
 
         <footer className="font-mono text-xs mt-12" style={{ color: 'rgba(255,255,255,0.4)' }}>
-          source · src/pages/CmoPreviewPage.tsx · admin-gated (members.is_admin) · iterate the SVG / copy here, ship to Phase 2 once locked
+          source · src/pages/CmoPreviewPage.tsx + supabase/functions/generate-tweet-copy
         </footer>
       </div>
     </div>
+  )
+}
+
+// ── Variation card · save / pick / copy ────────────────────────────────────
+function VariationCard({ v, index, draftId, onChange }: {
+  v: { copy: string; hashtags?: string[]; pillar?: string; rationale?: string }
+  index: number
+  draftId: string | null
+  onChange: () => void
+}) {
+  const [busy, setBusy] = useState(false)
+  const [out, setOut]   = useState<string | null>(null)
+  const charCount = v.copy.length
+
+  const copyToClipboard = async () => {
+    try { await navigator.clipboard.writeText(v.copy); setOut('copied to clipboard') }
+    catch { setOut('copy failed') }
+  }
+
+  const markSelected = async () => {
+    if (!draftId) { setOut('no draft id · re-generate'); return }
+    setBusy(true)
+    const { error } = await supabase.from('cmo_drafts').update({ selected_index: index, status: 'approved' }).eq('id', draftId)
+    setBusy(false)
+    if (error) setOut(`save failed: ${error.message}`)
+    else { setOut('saved · marked as approved'); onChange() }
+  }
+
+  return (
+    <div style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(240,192,64,0.18)', borderRadius: '3px', padding: 16 }}>
+      <div className="flex items-start justify-between mb-2 gap-3">
+        <div className="font-mono text-[11px]" style={{ color: 'rgba(255,255,255,0.55)' }}>
+          variation {index + 1}{v.pillar ? ` · pillar ${v.pillar}` : ''} · {charCount} chars
+        </div>
+        <div className="flex gap-2">
+          <button onClick={copyToClipboard} className="px-3 py-1 font-mono text-[10px]" style={{ background: 'transparent', color: 'var(--gold-500)', border: '1px solid rgba(240,192,64,0.4)', borderRadius: 2, cursor: 'pointer' }}>COPY</button>
+          <button onClick={markSelected} disabled={busy || !draftId} className="px-3 py-1 font-mono text-[10px]" style={{ background: 'var(--gold-500)', color: 'var(--navy-900)', border: 'none', borderRadius: 2, cursor: busy ? 'wait' : 'pointer' }}>{busy ? '…' : 'PICK'}</button>
+        </div>
+      </div>
+      <pre className="font-mono text-[13px]" style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', color: 'var(--cream)', margin: 0, lineHeight: 1.55 }}>{v.copy}</pre>
+      {v.hashtags && v.hashtags.length > 0 && (
+        <div className="font-mono text-[11px] mt-2" style={{ color: 'rgba(248,245,238,0.55)' }}>
+          tags: {v.hashtags.map(t => `#${t}`).join(' ')}
+        </div>
+      )}
+      {v.rationale && (
+        <div className="font-mono text-[11px] mt-2" style={{ color: 'rgba(255,255,255,0.45)' }}>
+          ↳ {v.rationale}
+        </div>
+      )}
+      {out && <div className="font-mono text-[11px] mt-2" style={{ color: out.includes('failed') ? 'var(--scarlet)' : 'var(--gold-500)' }}>{out}</div>}
+    </div>
+  )
+}
+
+// ── Template card · editable copy + share-card preview ─────────────────────
+function TemplateCard({ template, onSave }: { template: TemplateRow; onSave: () => void }) {
+  const [copy, setCopy]   = useState(template.copy_template)
+  const [busy, setBusy]   = useState(false)
+  const [out,  setOut]    = useState<string | null>(null)
+  const dirty = copy !== template.copy_template
+  const Image = TEMPLATE_IMAGES[template.id]
+
+  useEffect(() => { setCopy(template.copy_template) }, [template.copy_template])
+
+  const save = async () => {
+    setBusy(true)
+    setOut(null)
+    const { error } = await supabase.from('cmo_templates').update({ copy_template: copy }).eq('id', template.id)
+    setBusy(false)
+    if (error) setOut(`save failed: ${error.message}`)
+    else { setOut('saved'); onSave() }
+  }
+
+  return (
+    <section style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '4px', padding: 24 }}>
+      <div style={{ marginBottom: 16 }}>
+        <h3 className="font-display text-lg mb-1" style={{ color: 'var(--gold-500)' }}>{template.label}</h3>
+        <div className="font-mono text-[11px] mb-1" style={{ color: 'rgba(255,255,255,0.55)' }}>
+          fires when: <span style={{ color: 'rgba(255,255,255,0.8)' }}>{template.fires_when}</span>
+        </div>
+        <div className="font-mono text-[11px]" style={{ color: 'rgba(255,255,255,0.55)' }}>
+          data: <span style={{ color: 'rgba(255,255,255,0.8)' }}>{template.data_source}</span>
+        </div>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '3fr 2fr', gap: 24, alignItems: 'start' }}>
+        <div>
+          <div className="font-mono text-[10px] mb-2" style={{ color: 'rgba(255,255,255,0.4)', letterSpacing: 2 }}>SHARE CARD · 1200×630 (sample data)</div>
+          {Image ? <Image /> : <div className="font-mono text-xs" style={{ color: 'rgba(255,255,255,0.4)' }}>no image template</div>}
+        </div>
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <div className="font-mono text-[10px]" style={{ color: 'rgba(255,255,255,0.4)', letterSpacing: 2 }}>TWEET COPY · {copy.length} CHARS{dirty ? ' · UNSAVED' : ''}</div>
+            <button
+              onClick={save}
+              disabled={!dirty || busy}
+              className="px-3 py-1 font-mono text-[10px]"
+              style={{
+                background: dirty ? 'var(--gold-500)' : 'rgba(255,255,255,0.05)',
+                color: dirty ? 'var(--navy-900)' : 'rgba(255,255,255,0.3)',
+                border: 'none', borderRadius: 2,
+                cursor: dirty && !busy ? 'pointer' : 'default',
+              }}
+            >
+              {busy ? '…' : 'SAVE'}
+            </button>
+          </div>
+          <textarea
+            value={copy}
+            onChange={e => setCopy(e.target.value)}
+            rows={12}
+            style={{
+              width: '100%', padding: 12, background: 'rgba(0,0,0,0.4)',
+              border: '1px solid rgba(240,192,64,0.18)', borderRadius: '3px',
+              color: 'var(--cream)', fontFamily: "'DM Mono', monospace", fontSize: 12,
+              lineHeight: 1.55, resize: 'vertical',
+            }}
+          />
+          {out && <div className="font-mono text-[11px] mt-1" style={{ color: out.includes('failed') ? 'var(--scarlet)' : 'var(--gold-500)' }}>{out}</div>}
+          <div className="font-mono text-[10px] mt-2" style={{ color: 'rgba(255,255,255,0.4)' }}>
+            updated {new Date(template.updated_at).toLocaleString('ko-KR')}
+          </div>
+        </div>
+      </div>
+    </section>
   )
 }
