@@ -132,16 +132,30 @@ export function SubmitForm({ onComplete }: SubmitFormProps) {
   }, [paymentResult, user?.id])
 
   // Manual override · user clicks the "I've already paid" button on the
-  // finalizing panel to force a fresh eligibility check. If it lands ok,
-  // polling stops and they continue to the form.
+  // finalizing panel to force a fresh eligibility check. We refresh the JWT
+  // first (a stale session was silently 401-ing reads of paid_audits_credit
+  // even though RLS allows anon reads — observed in testing 2026-05-03) and
+  // then surface a tiny status so the user sees that the click did something.
+  const [recheckStatus, setRecheckStatus] = useState<'idle' | 'busy' | 'no-credit' | 'error'>('idle')
   const recheckEligibility = async () => {
     if (!user?.id) return
+    setRecheckStatus('busy')
     try {
+      // Force refresh the auth token — observed cases where a long-lived tab
+      // had an expired JWT and the supabase client silently returned 401 on
+      // members reads, masking the credit even when it was set in DB.
+      try { await supabase.auth.refreshSession() } catch {}
       const res = await checkRegistrationEligibility(user.id)
       setEligibility(res)
-      if (res.ok) setPaymentPolling(false)
+      if (res.ok) {
+        setPaymentPolling(false)
+        setRecheckStatus('idle')
+      } else {
+        setRecheckStatus('no-credit')
+      }
     } catch (err) {
       console.warn('[submit] manual eligibility recheck failed', err)
+      setRecheckStatus('error')
     }
   }
 
@@ -432,20 +446,32 @@ export function SubmitForm({ onComplete }: SubmitFormProps) {
           <div className="mt-4">
             <button
               onClick={recheckEligibility}
+              disabled={recheckStatus === 'busy'}
               className="px-5 py-2 font-mono text-xs font-medium tracking-wide transition-all"
               style={{
                 background: 'transparent',
                 color: 'var(--gold-500)',
                 border: '1px solid rgba(240,192,64,0.5)',
                 borderRadius: '2px',
-                cursor: 'pointer',
+                cursor: recheckStatus === 'busy' ? 'wait' : 'pointer',
+                opacity: recheckStatus === 'busy' ? 0.55 : 1,
               }}
             >
-              I'VE ALREADY PAID · CHECK NOW
+              {recheckStatus === 'busy' ? 'CHECKING…' : "I'VE ALREADY PAID · CHECK NOW"}
             </button>
             <p className="font-mono text-[11px] mt-2" style={{ color: 'rgba(248,245,238,0.35)' }}>
               attempt {paymentPollAttempt} / 45
             </p>
+            {recheckStatus === 'no-credit' && (
+              <p className="font-mono text-[11px] mt-2" style={{ color: 'rgba(248,245,238,0.55)' }}>
+                webhook hasn't landed yet · keep waiting or refresh in 30s
+              </p>
+            )}
+            {recheckStatus === 'error' && (
+              <p className="font-mono text-[11px] mt-2" style={{ color: 'var(--scarlet)' }}>
+                connection error · hard refresh (⌘⇧R) and try again
+              </p>
+            )}
           </div>
         )}
         {!paymentPolling && (
