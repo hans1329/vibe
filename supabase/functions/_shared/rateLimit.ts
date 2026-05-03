@@ -32,7 +32,11 @@
 export const RATE_ANON_PER_IP    = 5
 export const RATE_AUTHED_PER_IP  = 50
 export const RATE_PER_URL_GLOBAL = 5
-export const RATE_GLOBAL_DAILY   = 800
+// Platform-wide cache-miss cap. Bumped 800 → 2000 (2026-05-03) so a viral
+// launch wave (HN front page · trending tweet) doesn't hit the wall in the
+// first 24h. Worst case ~$200/day Claude spend; covered by the audition
+// fee revenue band even at modest paid conversion.
+export const RATE_GLOBAL_DAILY   = 2000
 
 export const CORS: Record<string, string> = {
   'Access-Control-Allow-Origin':  '*',
@@ -204,7 +208,11 @@ export async function enforceRateLimit(
   if (!global.ok) {
     return {
       ok: false, reason: 'global_cap', limit: global.limit, count: global.count,
-      message: `commit.show has hit its daily audit cap. Cached results still work · fresh audits resume after reset.`,
+      // Cap-hit copy is intentionally celebratory — capacity isn't a bug,
+      // it's a signal that demand outran the day's slots. Spin "no fresh
+      // audits" as "stage is sold out" so the user feels they're showing
+      // up on a packed night, not blocked by a broken service.
+      message: `commit.show is at capacity today — ${global.count.toLocaleString()} audits already ran and every fresh slot is taken. Cached reports still load instantly. Fresh runs resume after the daily reset (UTC midnight) · come back tomorrow.`,
       quota: {
         reset_at,
         ip:     { count: ip.count, limit: ip.limit, remaining: Math.max(0, ip.limit - ip.count), tier: authed ? 'authed' : 'anon' },

@@ -77,7 +77,7 @@ async function fetchGithubHead(slug: string): Promise<string | null> {
 const RATE_ANON_PER_IP     = 5                          // anon IP cap
 const RATE_AUTHED_PER_IP   = 50                         // authed IP cap · early-launch generous (revisit when real traffic ramps)
 const RATE_PER_URL_GLOBAL  = 5                          // per github_url cap (any IP)
-const RATE_GLOBAL_DAILY    = 800                        // platform-wide cache-miss cap
+const RATE_GLOBAL_DAILY    = 2000                       // platform-wide cache-miss cap · bumped 800 → 2000 (2026-05-03) for viral launch headroom
 
 // Canonicalize `https://github.com/Owner/repo.git/` → `https://github.com/owner/repo`
 function canonicalGithub(url: string): { canonical: string; slug: string } | null {
@@ -285,7 +285,9 @@ async function enforceRateLimit(
   if (!global.ok) {
     return {
       ok: false, reason: 'global_cap', limit: global.limit, count: global.count,
-      message: `commit.show has hit its daily audit cap. Cached results still work · fresh audits resume after reset.`,
+      // "Sold out" framing instead of "service down" — capacity hit is a
+      // demand signal, not a bug. Mirror copy in _shared/rateLimit.ts.
+      message: `commit.show is at capacity today — ${global.count.toLocaleString()} audits already ran and every fresh slot is taken. Cached reports still load instantly. Fresh runs resume after the daily reset (UTC midnight) · come back tomorrow.`,
       quota: {
         reset_at,
         ip:     { count: ip.count, limit: ip.limit, remaining: Math.max(0, ip.limit - ip.count), tier: authed ? 'authed' : 'anon' },
