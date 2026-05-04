@@ -69,30 +69,10 @@ export function ShareOnXMenu({ options, url, variant = 'default' }: Props) {
     setOpen(false)
   }
 
-  // Single-option fast path · skip the picker, fire directly.
-  if (options.length === 1) {
-    return (
-      <button
-        type="button"
-        onClick={() => fire(options[0])}
-        disabled={busy}
-        className="inline-flex items-center gap-1.5 font-mono text-[11px] tracking-wide"
-        style={{
-          background: 'transparent',
-          color:      'var(--gold-500)',
-          border:     '1px solid rgba(240,192,64,0.45)',
-          borderRadius: '2px',
-          padding:    variant === 'compact' ? '4px 10px' : '6px 12px',
-          cursor:     busy ? 'wait' : 'pointer',
-          fontWeight: 600,
-        }}
-        aria-label="Share on X"
-      >
-        <IconX size={12} />
-        {busy ? 'OPENING…' : 'Share on X'}
-      </button>
-    )
-  }
+  // Always open the picker, even for a single option — owners want to
+  // see what they're about to tweet before X grabs the tab. Removed the
+  // single-option fast path because it surprised owners who expected
+  // the menu to be the canonical preview surface.
 
   return (
     <span ref={wrapRef} style={{ position: 'relative', display: 'inline-block' }}>
